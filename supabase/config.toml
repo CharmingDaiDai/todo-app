@@ -1,0 +1,4 @@
+project_id = "deep-todo-pwa"
+
+[functions.send-due-reminders]
+verify_jwt = false
