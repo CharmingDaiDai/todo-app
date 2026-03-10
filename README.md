@@ -57,6 +57,16 @@ VITE_SUPABASE_ANON_KEY=
 
 在 Cloudflare Pages 上，前端还会优先通过 Pages Function `/api/runtime-config` 读取运行时配置，这样即使构建阶段的 Vite 变量注入异常，也不会阻塞 Supabase 初始化。
 
+如果 Cloudflare Pages 对 `VITE_*` 变量表现异常，运行时接口还支持这些后备名字：
+
+```bash
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+VAPID_PUBLIC_KEY=
+```
+
+对 Pages 来说，推荐优先配置这组不带 `VITE_` 前缀的运行时变量，由 `/api/runtime-config` 提供给前端。
+
 ## Supabase SQL
 
 首次初始化或升级提醒能力后，需要执行：
