@@ -1,13 +1,14 @@
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+const supabasePublishableKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.env.VITE_SUPABASE_ANON_KEY
 const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
 if (!supabaseUrl || !supabasePublishableKey) {
-  throw new Error('Missing Supabase environment variables. Check .env.local.')
+  throw new Error('Missing Supabase environment variables. Define VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY or VITE_SUPABASE_ANON_KEY.')
 }
 
 if (supabaseUrl === 'your-supabase-project-url' || supabasePublishableKey === 'your-supabase-publishable-key') {
-  throw new Error('Supabase environment variables are still placeholders. Update .env.local before running the app.')
+  throw new Error('Supabase environment variables are still placeholders. Update your deployment environment before running the app.')
 }
 
 try {
