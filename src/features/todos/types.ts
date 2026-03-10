@@ -69,3 +69,11 @@ export type ReplaceTodoTagsInput = {
   todoId: string
   tagIds: string[]
 }
+
+export type ReplaceTodoSubtasksInput = {
+  todoId: string
+  subtasks: Array<{
+    title: string
+    isCompleted: boolean
+  }>
+}

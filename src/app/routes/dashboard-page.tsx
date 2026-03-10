@@ -20,6 +20,7 @@ import {
   useDeleteTagMutation,
   useDeleteTodoMutation,
   useReorderTodoMutation,
+  useReplaceTodoSubtasksMutation,
   useReplaceTodoTagsMutation,
   useTagsQuery,
   useTodosQuery,
@@ -28,7 +29,7 @@ import {
   useUpdateTodoMutation,
 } from '../../features/todos/hooks'
 import { calculateNewOrderIndex } from '../../features/todos/order'
-import type { TodoPriority } from '../../features/todos/types'
+import type { Subtask, TodoPriority } from '../../features/todos/types'
 import { cn } from '../../lib/cn'
 import { useAuthStore } from '../../store/auth-store'
 import { useThemeStore } from '../../store/theme-store'
@@ -125,6 +126,7 @@ export function DashboardPage() {
   const updateTodoMutation = useUpdateTodoMutation(userId)
   const reorderTodoMutation = useReorderTodoMutation(userId)
   const replaceTodoTagsMutation = useReplaceTodoTagsMutation(userId)
+  const replaceTodoSubtasksMutation = useReplaceTodoSubtasksMutation(userId)
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -144,6 +146,8 @@ export function DashboardPage() {
   const [editDueDate, setEditDueDate] = useState('')
   const [editPriority, setEditPriority] = useState<TodoPriority>(2)
   const [editSelectedTagIds, setEditSelectedTagIds] = useState<string[]>([])
+  const [editSubtasks, setEditSubtasks] = useState<Array<{ title: string; isCompleted: boolean }>>([])
+  const [editDraftSubtask, setEditDraftSubtask] = useState('')
 
   const todos = todosQuery.data ?? []
   const tags = tagsQuery.data ?? []
@@ -217,6 +221,15 @@ export function DashboardPage() {
     setDraftSubtask('')
   }
 
+  const handleAddEditSubtask = () => {
+    const value = editDraftSubtask.trim()
+
+    if (!value) return
+
+    setEditSubtasks((current) => [...current, { title: value, isCompleted: false }])
+    setEditDraftSubtask('')
+  }
+
   const handleCreateTodo = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -283,6 +296,7 @@ export function DashboardPage() {
     currentDueDate: string | null,
     currentPriority: TodoPriority,
     currentTagIds: string[],
+    currentSubtasks: Subtask[],
   ) => {
     setEditingTodoId(todoId)
     setEditTitle(currentTitle)
@@ -290,6 +304,8 @@ export function DashboardPage() {
     setEditDueDate(toDateTimeLocalValue(currentDueDate))
     setEditPriority(currentPriority)
     setEditSelectedTagIds(currentTagIds)
+    setEditSubtasks(currentSubtasks.map((subtask) => ({ title: subtask.title, isCompleted: subtask.isCompleted })))
+    setEditDraftSubtask('')
   }
 
   const handleCancelEdit = () => {
@@ -299,6 +315,8 @@ export function DashboardPage() {
     setEditDueDate('')
     setEditPriority(2)
     setEditSelectedTagIds([])
+    setEditSubtasks([])
+    setEditDraftSubtask('')
   }
 
   const handleUpdateTodo = async (todoId: string) => {
@@ -318,6 +336,14 @@ export function DashboardPage() {
       await replaceTodoTagsMutation.mutateAsync({
         todoId,
         tagIds: editSelectedTagIds,
+      })
+
+      await replaceTodoSubtasksMutation.mutateAsync({
+        todoId,
+        subtasks: editSubtasks.filter((subtask) => subtask.title.trim()).map((subtask) => ({
+          title: subtask.title.trim(),
+          isCompleted: subtask.isCompleted,
+        })),
       })
 
       handleCancelEdit()
@@ -706,8 +732,64 @@ export function DashboardPage() {
                             })}
                           </div>
                         </div>
+                        <div>
+                          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                            <ListChecks className="h-4 w-4" />
+                            编辑子任务
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              className="field-input"
+                              value={editDraftSubtask}
+                              onChange={(event) => setEditDraftSubtask(event.target.value)}
+                              placeholder="添加一个新的子任务"
+                            />
+                            <Button type="button" tone="secondary" onClick={handleAddEditSubtask}>
+                              添加
+                            </Button>
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            {editSubtasks.length === 0 ? <div className="text-sm muted">当前没有子任务。</div> : null}
+                            {editSubtasks.map((subtask, index) => (
+                              <div key={`${index}-${subtask.title}`} className="panel flex items-center gap-3 px-4 py-3">
+                                <input
+                                  className="field-checkbox h-4 w-4"
+                                  type="checkbox"
+                                  checked={subtask.isCompleted}
+                                  onChange={(event) =>
+                                    setEditSubtasks((current) =>
+                                      current.map((item, itemIndex) =>
+                                        itemIndex === index ? { ...item, isCompleted: event.target.checked } : item,
+                                      ),
+                                    )
+                                  }
+                                />
+                                <input
+                                  className="field-input"
+                                  value={subtask.title}
+                                  onChange={(event) =>
+                                    setEditSubtasks((current) =>
+                                      current.map((item, itemIndex) =>
+                                        itemIndex === index ? { ...item, title: event.target.value } : item,
+                                      ),
+                                    )
+                                  }
+                                />
+                                <Button
+                                  type="button"
+                                  tone="ghost"
+                                  onClick={() => setEditSubtasks((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                                >
+                                  <X className="h-4 w-4" />
+                                  删除
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                         {updateTodoMutation.error ? <div className="text-sm text-[#d11f3e]">{updateTodoMutation.error.message}</div> : null}
                         {replaceTodoTagsMutation.error ? <div className="text-sm text-[#d11f3e]">{replaceTodoTagsMutation.error.message}</div> : null}
+                        {replaceTodoSubtasksMutation.error ? <div className="text-sm text-[#d11f3e]">{replaceTodoSubtasksMutation.error.message}</div> : null}
                       </div>
                     ) : (
                       <>
@@ -775,7 +857,7 @@ export function DashboardPage() {
                         ) : (
                           <Button
                             tone="ghost"
-                            onClick={() => handleStartEdit(todo.id, todo.title, todo.description, todo.dueDate, todo.priority, todo.tags.map((tag) => tag.id))}
+                            onClick={() => handleStartEdit(todo.id, todo.title, todo.description, todo.dueDate, todo.priority, todo.tags.map((tag) => tag.id), todo.subtasks)}
                           >
                             <PencilLine className="h-4 w-4" />
                             编辑

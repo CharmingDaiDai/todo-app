@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createTag, createTodo, deleteTag, deleteTodo, listTags, listTodos, reorderTodo, replaceTodoTags, toggleSubtaskCompletion, toggleTodoStatus, updateTodo } from './api'
-import type { CreateTagInput, CreateTodoInput, ReorderTodoInput, ReplaceTodoTagsInput, Todo, UpdateTodoInput } from './types'
+import { createTag, createTodo, deleteTag, deleteTodo, listTags, listTodos, reorderTodo, replaceTodoSubtasks, replaceTodoTags, toggleSubtaskCompletion, toggleTodoStatus, updateTodo } from './api'
+import type { CreateTagInput, CreateTodoInput, ReorderTodoInput, ReplaceTodoSubtasksInput, ReplaceTodoTagsInput, Todo, UpdateTodoInput } from './types'
 
 export const todoKeys = {
   all: ['todos'] as const,
@@ -149,6 +149,18 @@ export function useReplaceTodoTagsMutation(userId: string | undefined) {
 
   return useMutation({
     mutationFn: (input: ReplaceTodoTagsInput) => replaceTodoTags(input),
+    onSuccess: async () => {
+      if (!userId) return
+      await queryClient.invalidateQueries({ queryKey: todoKeys.list(userId) })
+    },
+  })
+}
+
+export function useReplaceTodoSubtasksMutation(userId: string | undefined) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: ReplaceTodoSubtasksInput) => replaceTodoSubtasks(input),
     onSuccess: async () => {
       if (!userId) return
       await queryClient.invalidateQueries({ queryKey: todoKeys.list(userId) })
