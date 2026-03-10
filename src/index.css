@@ -209,6 +209,19 @@ textarea {
   color: var(--text-muted);
 }
 
+.field-textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.field-select {
+  appearance: none;
+}
+
+.field-checkbox {
+  accent-color: var(--accent);
+}
+
 .nav-link {
   display: flex;
   align-items: center;
@@ -250,4 +263,22 @@ textarea {
 
 .mono {
   font-family: var(--font-mono);
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: var(--surface-strong);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.tag-chip-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 9999px;
 }

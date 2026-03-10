@@ -1,45 +1,166 @@
 import { motion } from 'framer-motion'
-import { CalendarRange, CheckCheck, Layers3, Zap } from 'lucide-react'
+import { CalendarClock, ListChecks, Plus, Tags, Trash2 } from 'lucide-react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { AppShell } from '../../components/layout/app-shell'
 import { ThemeStage } from '../../components/theme/theme-stage'
+import { Button } from '../../components/ui/button'
+import {
+  useCreateTagMutation,
+  useCreateTodoMutation,
+  useDeleteTodoMutation,
+  useTagsQuery,
+  useTodosQuery,
+  useToggleSubtaskMutation,
+  useToggleTodoStatusMutation,
+} from '../../features/todos/hooks'
+import type { TodoPriority } from '../../features/todos/types'
 import { useAuthStore } from '../../store/auth-store'
 import { useThemeStore } from '../../store/theme-store'
 
-const foundationCards = [
-  {
-    title: 'Auth baseline',
-    description: '邮箱密码登录、Magic Link 和会话恢复已经接入前端骨架。',
-    icon: CheckCheck,
-  },
-  {
-    title: 'Theme engine',
-    description: 'Zen / Glass / Brutal 的 light / dark 视觉 token 已接入全局样式层。',
-    icon: Layers3,
-  },
-  {
-    title: 'PWA boot',
-    description: 'Manifest、Service Worker 自动注册和离线缓存配置已经就位。',
-    icon: Zap,
-  },
+const priorityOptions: Array<{ value: TodoPriority; label: string; tone: string }> = [
+  { value: 3, label: '高优先级', tone: '#d11f3e' },
+  { value: 2, label: '中优先级', tone: 'var(--accent)' },
+  { value: 1, label: '低优先级', tone: '#2f8f58' },
 ]
 
-const nextMilestones = [
-  '接入 Todo / Tag / Subtask 的 Query hooks 与表单 mutation',
-  '实现任务列表、过滤、智能排序与乐观更新',
-  '完成 dnd-kit 拖拽排序和 fractional indexing',
-  '补完通知订阅、Edge Function 与到期提醒链路',
-]
+const tagColors = ['#1258d6', '#ff4d00', '#2f8f58', '#8a43ff', '#d11f3e', '#f59e0b']
+
+function formatDate(date: string | null) {
+  if (!date) return '未设置'
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(date))
+}
 
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user)
   const language = useThemeStore((state) => state.language)
   const mode = useThemeStore((state) => state.mode)
+  const userId = user?.id
+  const todosQuery = useTodosQuery(userId)
+  const tagsQuery = useTagsQuery(userId)
+  const createTodoMutation = useCreateTodoMutation(userId)
+  const createTagMutation = useCreateTagMutation(userId)
+  const toggleTodoStatusMutation = useToggleTodoStatusMutation(userId)
+  const deleteTodoMutation = useDeleteTodoMutation(userId)
+  const toggleSubtaskMutation = useToggleSubtaskMutation(userId)
+
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [dueDate, setDueDate] = useState('')
+  const [priority, setPriority] = useState<TodoPriority>(2)
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  const [draftSubtask, setDraftSubtask] = useState('')
+  const [subtasks, setSubtasks] = useState<string[]>([])
+  const [tagName, setTagName] = useState('')
+  const [tagColor, setTagColor] = useState(tagColors[0])
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
+  const [sortMode, setSortMode] = useState<'manual' | 'due' | 'priority'>('manual')
+
+  const todos = todosQuery.data ?? []
+  const tags = tagsQuery.data ?? []
+
+  const visibleTodos = useMemo(() => {
+    const filtered = todos.filter((todo) => (statusFilter === 'all' ? true : todo.status === statusFilter))
+
+    if (sortMode === 'due') {
+      return filtered.slice().sort((left, right) => {
+        if (!left.dueDate) return 1
+        if (!right.dueDate) return -1
+        return new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime()
+      })
+    }
+
+    if (sortMode === 'priority') {
+      return filtered.slice().sort((left, right) => right.priority - left.priority)
+    }
+
+    return filtered.slice().sort((left, right) => left.orderIndex - right.orderIndex)
+  }, [sortMode, statusFilter, todos])
+
+  const pendingCount = todos.filter((todo) => todo.status === 'pending').length
+  const completedCount = todos.length - pendingCount
+  const dueSoonCount = todos.filter((todo) => {
+    if (!todo.dueDate || todo.status === 'completed') return false
+    const diff = new Date(todo.dueDate).getTime() - Date.now()
+    return diff > 0 && diff <= 1000 * 60 * 60 * 24
+  }).length
+
+  const handleToggleTag = (tagId: string) => {
+    setSelectedTagIds((current) =>
+      current.includes(tagId) ? current.filter((value) => value !== tagId) : [...current, tagId],
+    )
+  }
+
+  const handleAddSubtask = () => {
+    const value = draftSubtask.trim()
+
+    if (!value) return
+
+    setSubtasks((current) => [...current, value])
+    setDraftSubtask('')
+  }
+
+  const handleCreateTodo = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!userId || !title.trim()) {
+      return
+    }
+
+    try {
+      await createTodoMutation.mutateAsync({
+        userId,
+        title: title.trim(),
+        description: description.trim(),
+        priority,
+        dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+        tagIds: selectedTagIds,
+        subtasks: subtasks.map((item) => ({ title: item })),
+      })
+
+      setTitle('')
+      setDescription('')
+      setDueDate('')
+      setPriority(2)
+      setSelectedTagIds([])
+      setSubtasks([])
+      setDraftSubtask('')
+    } catch {
+      return
+    }
+  }
+
+  const handleCreateTag = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!userId || !tagName.trim()) {
+      return
+    }
+
+    try {
+      await createTagMutation.mutateAsync({
+        userId,
+        name: tagName.trim(),
+        color: tagColor,
+      })
+
+      setTagName('')
+      setTagColor(tagColors[(tagColors.indexOf(tagColor) + 1) % tagColors.length])
+    } catch {
+      return
+    }
+  }
 
   return (
     <AppShell
       eyebrow="Workspace"
-      title="Implementation has started."
-      description="当前阶段聚焦工程骨架、认证、主题和 PWA 基线。接下来会继续进入数据库、真实任务模型和拖拽排序。"
+      title="Live Todo workspace"
+      description="当前页已经直接连接 Supabase 数据层，可创建标签、任务和子任务，并支持完成状态切换与基础筛选排序。"
     >
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <ThemeStage />
@@ -57,77 +178,313 @@ export function DashboardPage() {
 
           <div className="mt-6 space-y-4">
             <div className="panel-strong flex items-start gap-4 p-4">
-              <CalendarRange className="mt-0.5 h-5 w-5 text-[var(--accent)]" />
+              <CalendarClock className="mt-0.5 h-5 w-5 text-[var(--accent)]" />
               <div>
-                <div className="font-semibold">本轮已完成</div>
-                <p className="mt-1 text-sm muted">前端基线、主题状态、认证壳和 PWA 插件已接入；数据库脚本已开始落地到仓库。</p>
+                <div className="font-semibold">当前已接入真实数据层</div>
+                <p className="mt-1 text-sm muted">任务、标签和子任务会直接通过 React Query 与 Supabase 交互，下一步再补拖拽排序与编辑流。</p>
               </div>
             </div>
 
-            <div className="panel-strong p-4">
-              <div className="text-xs uppercase tracking-[0.18em] muted">Current focus</div>
-              <div className="mt-2 text-sm">Todo CRUD 与 Supabase schema 将作为下一轮主线实现。</div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="panel-strong p-4">
+                <div className="text-xs uppercase tracking-[0.18em] muted">Open</div>
+                <div className="mt-2 text-2xl font-semibold">{pendingCount}</div>
+              </div>
+              <div className="panel-strong p-4">
+                <div className="text-xs uppercase tracking-[0.18em] muted">Done</div>
+                <div className="mt-2 text-2xl font-semibold">{completedCount}</div>
+              </div>
+              <div className="panel-strong p-4">
+                <div className="text-xs uppercase tracking-[0.18em] muted">Due 24h</div>
+                <div className="mt-2 text-2xl font-semibold">{dueSoonCount}</div>
+              </div>
             </div>
           </div>
         </section>
       </div>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        {foundationCards.map((card, index) => {
-          const Icon = card.icon
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        <form className="panel p-6" onSubmit={(event) => void handleCreateTodo(event)}>
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-soft)] text-[var(--accent)]">
+              <Plus className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] muted">Create task</div>
+              <h3 className="mt-1 text-xl font-semibold">录入新的 Todo</h3>
+            </div>
+          </div>
 
-          return (
-            <motion.div
-              key={card.title}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.08, duration: 0.35 }}
-              className="panel p-5"
-            >
-              <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-soft)] text-[var(--accent)]">
-                <Icon className="h-5 w-5" />
+          <div className="mt-6 grid gap-4">
+            <div>
+              <label className="mb-2 block text-sm font-semibold">标题</label>
+              <input className="field-input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：完成 Supabase schema 上线" required />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold">描述</label>
+              <textarea className="field-input field-textarea" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="补充说明、上下文和期望结果" />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-semibold">截止时间</label>
+                <input className="field-input" type="datetime-local" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
               </div>
-              <h3 className="mt-4 text-lg font-semibold">{card.title}</h3>
-              <p className="mt-2 text-sm muted">{card.description}</p>
-            </motion.div>
-          )
-        })}
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">优先级</label>
+                <select className="field-input field-select" value={priority} onChange={(event) => setPriority(Number(event.target.value) as TodoPriority)}>
+                  {priorityOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <Tags className="h-4 w-4" />
+                标签
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {tags.length === 0 ? <div className="text-sm muted">先在右侧创建标签，然后回来多选。</div> : null}
+                {tags.map((tag) => {
+                  const selected = selectedTagIds.includes(tag.id)
+
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => handleToggleTag(tag.id)}
+                      className={`tag-chip ${selected ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                    >
+                      <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
+                      {tag.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <ListChecks className="h-4 w-4" />
+                子任务
+              </div>
+              <div className="flex gap-2">
+                <input
+                  className="field-input"
+                  value={draftSubtask}
+                  onChange={(event) => setDraftSubtask(event.target.value)}
+                  placeholder="添加一个 checklist 项"
+                />
+                <Button type="button" tone="secondary" onClick={handleAddSubtask}>
+                  添加
+                </Button>
+              </div>
+              {subtasks.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {subtasks.map((item, index) => (
+                    <div key={`${item}-${index}`} className="panel-strong flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                      <span>{item}</span>
+                      <button type="button" className="muted" onClick={() => setSubtasks((current) => current.filter((_, currentIndex) => currentIndex !== index))}>
+                        移除
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Button type="submit" disabled={createTodoMutation.isPending}>
+                {createTodoMutation.isPending ? '保存中...' : '创建 Todo'}
+              </Button>
+              {createTodoMutation.error ? <div className="text-sm text-[#d11f3e]">{createTodoMutation.error.message}</div> : null}
+            </div>
+          </div>
+        </form>
+
+        <section className="panel p-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-soft)] text-[var(--accent)]">
+              <Tags className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] muted">Tag studio</div>
+              <h3 className="mt-1 text-xl font-semibold">管理任务标签</h3>
+            </div>
+          </div>
+
+          <form className="mt-6 space-y-4" onSubmit={(event) => void handleCreateTag(event)}>
+            <div>
+              <label className="mb-2 block text-sm font-semibold">标签名称</label>
+              <input className="field-input" value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="例如：Product、Infra、Personal" required />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold">颜色</label>
+              <div className="flex flex-wrap gap-2">
+                {tagColors.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setTagColor(color)}
+                    className={`h-10 w-10 rounded-full border-2 ${tagColor === color ? 'border-[var(--text-primary)]' : 'border-transparent'}`}
+                    style={{ backgroundColor: color }}
+                    aria-label={`select ${color}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <Button type="submit" tone="secondary" disabled={createTagMutation.isPending}>
+              {createTagMutation.isPending ? '创建中...' : '创建标签'}
+            </Button>
+            {createTagMutation.error ? <div className="text-sm text-[#d11f3e]">{createTagMutation.error.message}</div> : null}
+          </form>
+
+          <div className="mt-6 flex flex-wrap gap-2">
+            {tags.map((tag) => (
+              <span key={tag.id} className="tag-chip">
+                <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
+                {tag.name}
+              </span>
+            ))}
+          </div>
+        </section>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <div className="panel p-6">
-          <div className="text-xs uppercase tracking-[0.18em] muted">Execution queue</div>
-          <h3 className="mt-2 text-xl font-semibold">接下来的编码主线</h3>
-          <div className="mt-5 space-y-3">
-            {nextMilestones.map((item) => (
-              <div key={item} className="panel-strong flex items-start gap-3 p-4">
-                <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
-                <span className="text-sm">{item}</span>
-              </div>
+      <section className="panel p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-[0.18em] muted">Task board</div>
+            <h3 className="mt-2 text-xl font-semibold">任务列表</h3>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {(['all', 'pending', 'completed'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setStatusFilter(value)}
+                className={`rounded-[var(--radius-md)] px-3 py-2 text-sm font-semibold ${
+                  statusFilter === value ? 'bg-[var(--accent)] text-white' : 'panel-strong'
+                }`}
+              >
+                {value === 'all' ? '全部' : value === 'pending' ? '未完成' : '已完成'}
+              </button>
+            ))}
+
+            {(['manual', 'due', 'priority'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setSortMode(value)}
+                className={`rounded-[var(--radius-md)] px-3 py-2 text-sm font-semibold ${
+                  sortMode === value ? 'bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent)]' : 'panel-strong'
+                }`}
+              >
+                {value === 'manual' ? '默认排序' : value === 'due' ? '最近截止' : '最高优先级'}
+              </button>
             ))}
           </div>
         </div>
 
-        <div className="panel p-6">
-          <div className="text-xs uppercase tracking-[0.18em] muted">Design intent</div>
-          <h3 className="mt-2 text-xl font-semibold">主题层已经不是简单换色</h3>
-          <p className="mt-3 text-sm muted">
-            当前基线已经把颜色、圆角、边框、阴影、字体与背景材质统一抽成 CSS 变量，后续组件层能在不大改 API 的情况下切换设计语言。
-          </p>
-          <div className="mt-5 grid gap-3">
-            <div className="panel-strong p-4">
-              <div className="mono text-xs uppercase tracking-[0.18em] muted">Zen</div>
-              <div className="mt-2 text-sm">柔和阴影、大圆角、克制层次。</div>
-            </div>
-            <div className="panel-strong p-4">
-              <div className="mono text-xs uppercase tracking-[0.18em] muted">Glass</div>
-              <div className="mt-2 text-sm">通透材质、发光边缘、动态光晕。</div>
-            </div>
-            <div className="panel-strong p-4">
-              <div className="mono text-xs uppercase tracking-[0.18em] muted">Brutal</div>
-              <div className="mt-2 text-sm">硬边框、网格纸感、强烈结构感。</div>
-            </div>
+        {todosQuery.isLoading ? <div className="mt-6 text-sm muted">正在加载任务数据…</div> : null}
+        {todosQuery.error ? (
+          <div className="mt-6 panel-strong p-4 text-sm text-[#d11f3e]">
+            {todosQuery.error.message}
+            <div className="mt-2 muted">如果这是首次运行，请先在 Supabase SQL Editor 执行仓库内的 schema.sql。</div>
           </div>
+        ) : null}
+
+        <div className="mt-6 space-y-4">
+          {visibleTodos.map((todo, index) => (
+            <motion.article
+              key={todo.id}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.04, duration: 0.28 }}
+              className="panel-strong p-5"
+            >
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex min-w-0 gap-4">
+                  <input
+                    className="field-checkbox mt-1 h-5 w-5"
+                    type="checkbox"
+                    checked={todo.status === 'completed'}
+                    onChange={(event) =>
+                      toggleTodoStatusMutation.mutate({
+                        id: todo.id,
+                        status: event.target.checked ? 'completed' : 'pending',
+                      })
+                    }
+                  />
+
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className={`text-lg font-semibold ${todo.status === 'completed' ? 'line-through opacity-60' : ''}`}>{todo.title}</h4>
+                      <span className="tag-chip" style={{ borderColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }}>
+                        <span className="tag-chip-dot" style={{ backgroundColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }} />
+                        {priorityOptions.find((item) => item.value === todo.priority)?.label}
+                      </span>
+                    </div>
+
+                    {todo.description ? <p className="mt-2 text-sm muted">{todo.description}</p> : null}
+
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.12em] muted">
+                      <span>Due {formatDate(todo.dueDate)}</span>
+                      <span>Created {formatDate(todo.createdAt)}</span>
+                    </div>
+
+                    {todo.tags.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {todo.tags.map((tag) => (
+                          <span key={tag.id} className="tag-chip">
+                            <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {todo.subtasks.length > 0 ? (
+                      <div className="mt-4 space-y-2">
+                        {todo.subtasks.map((subtask) => (
+                          <label key={subtask.id} className="panel flex items-center gap-3 px-4 py-3 text-sm">
+                            <input
+                              className="field-checkbox h-4 w-4"
+                              type="checkbox"
+                              checked={subtask.isCompleted}
+                              onChange={(event) =>
+                                toggleSubtaskMutation.mutate({ id: subtask.id, isCompleted: event.target.checked })
+                              }
+                            />
+                            <span className={subtask.isCompleted ? 'line-through opacity-60' : ''}>{subtask.title}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 lg:flex-col">
+                  <Button tone="ghost" onClick={() => deleteTodoMutation.mutate(todo.id)} disabled={deleteTodoMutation.isPending}>
+                    <Trash2 className="h-4 w-4" />
+                    删除
+                  </Button>
+                </div>
+              </div>
+            </motion.article>
+          ))}
+
+          {!todosQuery.isLoading && visibleTodos.length === 0 ? (
+            <div className="panel-strong p-6 text-sm muted">当前筛选条件下还没有任务。先在上方创建第一条 Todo。</div>
+          ) : null}
         </div>
       </section>
     </AppShell>

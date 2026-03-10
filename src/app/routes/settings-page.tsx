@@ -9,11 +9,21 @@ import { useAuthStore } from '../../store/auth-store'
 export function SettingsPage() {
   const user = useAuthStore((state) => state.user)
   const [isBusy, setIsBusy] = useState(false)
+  const [signOutError, setSignOutError] = useState<string | null>(null)
 
   const handleSignOut = async () => {
     setIsBusy(true)
-    await supabase.auth.signOut()
-    setIsBusy(false)
+    setSignOutError(null)
+
+    try {
+      const { error } = await supabase.auth.signOut()
+
+      if (error) {
+        setSignOutError(error.message)
+      }
+    } finally {
+      setIsBusy(false)
+    }
   }
 
   return (
@@ -50,6 +60,7 @@ export function SettingsPage() {
               <LogOut className="h-4 w-4" />
               {isBusy ? 'Signing out...' : 'Sign out'}
             </Button>
+            {signOutError ? <div className="mt-3 text-sm text-[#d11f3e]">{signOutError}</div> : null}
           </div>
         </section>
 
