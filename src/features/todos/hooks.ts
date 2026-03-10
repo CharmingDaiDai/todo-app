@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createTag, createTodo, deleteTodo, listTags, listTodos, toggleSubtaskCompletion, toggleTodoStatus, updateTodo } from './api'
-import type { CreateTagInput, CreateTodoInput, UpdateTodoInput } from './types'
+import { createTag, createTodo, deleteTodo, listTags, listTodos, reorderTodo, toggleSubtaskCompletion, toggleTodoStatus, updateTodo } from './api'
+import type { CreateTagInput, CreateTodoInput, ReorderTodoInput, Todo, UpdateTodoInput } from './types'
 
 export const todoKeys = {
   all: ['todos'] as const,
@@ -90,6 +90,41 @@ export function useToggleSubtaskMutation(userId: string | undefined) {
   return useMutation({
     mutationFn: ({ id, isCompleted }: { id: string; isCompleted: boolean }) => toggleSubtaskCompletion(id, isCompleted),
     onSuccess: async () => {
+      if (!userId) return
+      await queryClient.invalidateQueries({ queryKey: todoKeys.list(userId) })
+    },
+  })
+}
+
+export function useReorderTodoMutation(userId: string | undefined) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: ReorderTodoInput) => reorderTodo(input),
+    onMutate: async ({ id, orderIndex }) => {
+      if (!userId) {
+        return { previousTodos: undefined }
+      }
+
+      await queryClient.cancelQueries({ queryKey: todoKeys.list(userId) })
+      const previousTodos = queryClient.getQueryData<Todo[]>(todoKeys.list(userId))
+
+      if (previousTodos) {
+        queryClient.setQueryData<Todo[]>(
+          todoKeys.list(userId),
+          previousTodos
+            .map((todo) => (todo.id === id ? { ...todo, orderIndex } : todo))
+            .sort((left, right) => left.orderIndex - right.orderIndex),
+        )
+      }
+
+      return { previousTodos }
+    },
+    onError: (_error, _variables, context) => {
+      if (!userId || !context?.previousTodos) return
+      queryClient.setQueryData(todoKeys.list(userId), context.previousTodos)
+    },
+    onSettled: async () => {
       if (!userId) return
       await queryClient.invalidateQueries({ queryKey: todoKeys.list(userId) })
     },

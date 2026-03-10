@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import type { CreateTagInput, CreateTodoInput, Subtask, Tag, Todo, UpdateTodoInput } from './types'
+import type { CreateTagInput, CreateTodoInput, ReorderTodoInput, Subtask, Tag, Todo, UpdateTodoInput } from './types'
 
 type TodoRow = {
   id: string
@@ -244,6 +244,14 @@ export async function deleteTodo(id: string): Promise<void> {
 
 export async function toggleSubtaskCompletion(id: string, isCompleted: boolean): Promise<void> {
   const { error } = await supabase.from('subtasks').update({ is_completed: isCompleted }).eq('id', id)
+
+  if (error) {
+    throw error
+  }
+}
+
+export async function reorderTodo(input: ReorderTodoInput): Promise<void> {
+  const { error } = await supabase.from('todos').update({ order_index: input.orderIndex }).eq('id', input.id)
 
   if (error) {
     throw error

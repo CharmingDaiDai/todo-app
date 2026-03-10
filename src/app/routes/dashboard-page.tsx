@@ -1,6 +1,16 @@
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { motion } from 'framer-motion'
-import { CalendarClock, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
-import { useMemo, useState, type FormEvent } from 'react'
+import { CalendarClock, GripVertical, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
+import { useMemo, useState, type ReactNode, type FormEvent } from 'react'
 import { AppShell } from '../../components/layout/app-shell'
 import { ThemeStage } from '../../components/theme/theme-stage'
 import { Button } from '../../components/ui/button'
@@ -8,13 +18,16 @@ import {
   useCreateTagMutation,
   useCreateTodoMutation,
   useDeleteTodoMutation,
+  useReorderTodoMutation,
   useTagsQuery,
   useTodosQuery,
   useToggleSubtaskMutation,
   useToggleTodoStatusMutation,
   useUpdateTodoMutation,
 } from '../../features/todos/hooks'
+import { calculateNewOrderIndex } from '../../features/todos/order'
 import type { TodoPriority } from '../../features/todos/types'
+import { cn } from '../../lib/cn'
 import { useAuthStore } from '../../store/auth-store'
 import { useThemeStore } from '../../store/theme-store'
 
@@ -47,6 +60,53 @@ function toDateTimeLocalValue(date: string | null) {
   return localDate.toISOString().slice(0, 16)
 }
 
+type SortableTodoCardProps = {
+  id: string
+  disabled: boolean
+  content: ReactNode
+  actions: ReactNode
+}
+
+function SortableTodoCard({ id, disabled, content, actions }: SortableTodoCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled,
+  })
+
+  return (
+    <article
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      className={cn('panel-strong p-5', isDragging && 'opacity-80')}
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 gap-4">{content}</div>
+
+        <div className="flex gap-2 lg:flex-col">
+          <button
+            type="button"
+            aria-label="drag to reorder todo"
+            className={cn(
+              'inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-semibold',
+              disabled ? 'cursor-not-allowed opacity-45' : 'cursor-grab active:cursor-grabbing',
+            )}
+            disabled={disabled}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-4 w-4" />
+            拖拽
+          </button>
+          {actions}
+        </div>
+      </div>
+    </article>
+  )
+}
+
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user)
   const language = useThemeStore((state) => state.language)
@@ -60,6 +120,7 @@ export function DashboardPage() {
   const deleteTodoMutation = useDeleteTodoMutation(userId)
   const toggleSubtaskMutation = useToggleSubtaskMutation(userId)
   const updateTodoMutation = useUpdateTodoMutation(userId)
+  const reorderTodoMutation = useReorderTodoMutation(userId)
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -81,6 +142,7 @@ export function DashboardPage() {
 
   const todos = todosQuery.data ?? []
   const tags = tagsQuery.data ?? []
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   const visibleTodos = useMemo(() => {
     const filtered = todos.filter((todo) => {
@@ -113,6 +175,7 @@ export function DashboardPage() {
     const diff = new Date(todo.dueDate).getTime() - Date.now()
     return diff > 0 && diff <= 1000 * 60 * 60 * 24
   }).length
+  const canDragSort = sortMode === 'manual' && statusFilter === 'all' && activeTagFilters.length === 0 && editingTodoId === null
 
   const handleToggleTag = (tagId: string) => {
     setSelectedTagIds((current) =>
@@ -223,6 +286,37 @@ export function DashboardPage() {
       })
 
       handleCancelEdit()
+    } catch {
+      return
+    }
+  }
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    if (!canDragSort) {
+      return
+    }
+
+    const { active, over } = event
+
+    if (!over || active.id === over.id) {
+      return
+    }
+
+    const newOrderIndex = calculateNewOrderIndex(
+      visibleTodos.map((todo) => ({ id: todo.id, orderIndex: todo.orderIndex })),
+      String(active.id),
+      String(over.id),
+    )
+
+    if (newOrderIndex === null) {
+      return
+    }
+
+    try {
+      await reorderTodoMutation.mutateAsync({
+        id: String(active.id),
+        orderIndex: newOrderIndex,
+      })
     } catch {
       return
     }
@@ -493,6 +587,12 @@ export function DashboardPage() {
           </div>
         ) : null}
 
+        {!canDragSort ? (
+          <div className="mt-4 text-sm muted">拖拽排序仅在“默认排序 + 全部状态 + 无标签筛选 + 非编辑中”时启用，避免在筛选视图里写出错误顺序。</div>
+        ) : (
+          <div className="mt-4 text-sm muted">当前可直接拖拽任务卡片右侧的“拖拽”按钮来调整顺序。</div>
+        )}
+
         {todosQuery.isLoading ? <div className="mt-6 text-sm muted">正在加载任务数据…</div> : null}
         {todosQuery.error ? (
           <div className="mt-6 panel-strong p-4 text-sm text-[#d11f3e]">
@@ -501,30 +601,29 @@ export function DashboardPage() {
           </div>
         ) : null}
 
-        <div className="mt-6 space-y-4">
-          {visibleTodos.map((todo, index) => (
-            <motion.article
-              key={todo.id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.04, duration: 0.28 }}
-              className="panel-strong p-5"
-            >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="flex min-w-0 gap-4">
-                  <input
-                    className="field-checkbox mt-1 h-5 w-5"
-                    type="checkbox"
-                    checked={todo.status === 'completed'}
-                    onChange={(event) =>
-                      toggleTodoStatusMutation.mutate({
-                        id: todo.id,
-                        status: event.target.checked ? 'completed' : 'pending',
-                      })
-                    }
-                  />
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => void handleDragEnd(event)}>
+          <SortableContext items={visibleTodos.map((todo) => todo.id)} strategy={verticalListSortingStrategy}>
+            <div className="mt-6 space-y-4">
+              {visibleTodos.map((todo, index) => (
+                <motion.div key={todo.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04, duration: 0.28 }}>
+                  <SortableTodoCard
+                    id={todo.id}
+                    disabled={!canDragSort}
+                    content={
+                      <>
+                        <input
+                          className="field-checkbox mt-1 h-5 w-5"
+                          type="checkbox"
+                          checked={todo.status === 'completed'}
+                          onChange={(event) =>
+                            toggleTodoStatusMutation.mutate({
+                              id: todo.id,
+                              status: event.target.checked ? 'completed' : 'pending',
+                            })
+                          }
+                        />
 
-                  <div className="min-w-0">
+                        <div className="min-w-0">
                     {editingTodoId === todo.id ? (
                       <div className="space-y-3">
                         <input className="field-input" value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
@@ -588,43 +687,47 @@ export function DashboardPage() {
                         ))}
                       </div>
                     ) : null}
-                  </div>
-                </div>
+                        </div>
+                      </>
+                    }
+                    actions={
+                      <>
+                        {editingTodoId === todo.id ? (
+                          <>
+                            <Button tone="secondary" onClick={() => void handleUpdateTodo(todo.id)} disabled={updateTodoMutation.isPending}>
+                              <Save className="h-4 w-4" />
+                              保存
+                            </Button>
+                            <Button tone="ghost" onClick={handleCancelEdit}>
+                              <X className="h-4 w-4" />
+                              取消
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            tone="ghost"
+                            onClick={() => handleStartEdit(todo.id, todo.title, todo.description, todo.dueDate, todo.priority)}
+                          >
+                            <PencilLine className="h-4 w-4" />
+                            编辑
+                          </Button>
+                        )}
+                        <Button tone="ghost" onClick={() => deleteTodoMutation.mutate(todo.id)} disabled={deleteTodoMutation.isPending}>
+                          <Trash2 className="h-4 w-4" />
+                          删除
+                        </Button>
+                      </>
+                    }
+                  />
+                </motion.div>
+              ))}
 
-                <div className="flex gap-2 lg:flex-col">
-                  {editingTodoId === todo.id ? (
-                    <>
-                      <Button tone="secondary" onClick={() => void handleUpdateTodo(todo.id)} disabled={updateTodoMutation.isPending}>
-                        <Save className="h-4 w-4" />
-                        保存
-                      </Button>
-                      <Button tone="ghost" onClick={handleCancelEdit}>
-                        <X className="h-4 w-4" />
-                        取消
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      tone="ghost"
-                      onClick={() => handleStartEdit(todo.id, todo.title, todo.description, todo.dueDate, todo.priority)}
-                    >
-                      <PencilLine className="h-4 w-4" />
-                      编辑
-                    </Button>
-                  )}
-                  <Button tone="ghost" onClick={() => deleteTodoMutation.mutate(todo.id)} disabled={deleteTodoMutation.isPending}>
-                    <Trash2 className="h-4 w-4" />
-                    删除
-                  </Button>
-                </div>
-              </div>
-            </motion.article>
-          ))}
-
-          {!todosQuery.isLoading && visibleTodos.length === 0 ? (
-            <div className="panel-strong p-6 text-sm muted">当前状态与标签筛选条件下还没有任务。先调整筛选条件，或者在上方创建第一条 Todo。</div>
-          ) : null}
-        </div>
+              {!todosQuery.isLoading && visibleTodos.length === 0 ? (
+                <div className="panel-strong p-6 text-sm muted">当前状态与标签筛选条件下还没有任务。先调整筛选条件，或者在上方创建第一条 Todo。</div>
+              ) : null}
+            </div>
+          </SortableContext>
+        </DndContext>
       </section>
     </AppShell>
   )

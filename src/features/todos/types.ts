@@ -59,3 +59,8 @@ export type UpdateTodoInput = {
   dueDate?: string | null
   status?: TodoStatus
 }
+
+export type ReorderTodoInput = {
+  id: string
+  orderIndex: number
+}
