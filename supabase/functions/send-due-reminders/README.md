@@ -9,6 +9,13 @@
 
 提醒去重依赖 `public.todo_reminders` 表。
 
+投递观测依赖 `public.push_delivery_logs` 表，会记录：
+
+- 成功发送
+- 推送失败
+- 失效订阅自动清理
+- 因无订阅/重复提醒而被跳过
+
 ## 必需的 Edge Function Secrets
 
 使用 Supabase CLI 或控制台设置这些 secrets：
@@ -61,3 +68,4 @@ select public.invoke_send_due_reminders();
 - 当前逻辑在订阅无效（404/410）时会自动删除对应 `push_subs` 记录
 - 只有至少成功下发到一个设备时，才会写入 `todo_reminders`
 - 如果用户当前没有有效订阅，则不会写 reminder 记录，后续在到期前重新订阅仍有机会收到提醒
+- 每次函数执行都会尽量把投递结果写入 `push_delivery_logs`，用于后续排障和审计

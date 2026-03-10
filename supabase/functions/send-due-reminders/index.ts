@@ -24,6 +24,17 @@ type ReminderRow = {
   due_date: string
 }
 
+type PushDeliveryLogRow = {
+  todo_id: string | null
+  user_id: string | null
+  push_subscription_id: string | null
+  reminder_type: ReminderType | null
+  status: 'sent' | 'failed' | 'subscription_removed' | 'skipped'
+  endpoint: string | null
+  error_message: string | null
+  response_status: number | null
+}
+
 const HOUR_WINDOW_MINUTES = 60
 const TEN_MINUTES_WINDOW = 10
 
@@ -81,6 +92,14 @@ function createNotificationPayload(todo: TodoRow, reminderType: ReminderType) {
 
 async function removeInvalidSubscription(id: string) {
   await supabase.from('push_subs').delete().eq('id', id)
+}
+
+async function insertDeliveryLogs(logs: PushDeliveryLogRow[]) {
+  if (logs.length === 0) {
+    return
+  }
+
+  await supabase.from('push_delivery_logs').insert(logs)
 }
 
 Deno.serve(async (request) => {
@@ -143,6 +162,7 @@ Deno.serve(async (request) => {
   }
 
   const reminderRowsToInsert: Array<{ todo_id: string; user_id: string; reminder_type: ReminderType; due_date: string }> = []
+  const deliveryLogs: PushDeliveryLogRow[] = []
   let sentCount = 0
   let skippedCount = 0
 
@@ -151,6 +171,16 @@ Deno.serve(async (request) => {
 
     if (dueReminderTypes.length === 0) {
       skippedCount += 1
+      deliveryLogs.push({
+        todo_id: todo.id,
+        user_id: todo.user_id,
+        push_subscription_id: null,
+        reminder_type: null,
+        status: 'skipped',
+        endpoint: null,
+        error_message: 'Todo does not fall into an active reminder window.',
+        response_status: null,
+      })
       continue
     }
 
@@ -158,6 +188,20 @@ Deno.serve(async (request) => {
 
     if (userSubscriptions.length === 0) {
       skippedCount += dueReminderTypes.length
+
+      for (const reminderType of dueReminderTypes) {
+        deliveryLogs.push({
+          todo_id: todo.id,
+          user_id: todo.user_id,
+          push_subscription_id: null,
+          reminder_type: reminderType,
+          status: 'skipped',
+          endpoint: null,
+          error_message: 'No active browser subscriptions found for user.',
+          response_status: null,
+        })
+      }
+
       continue
     }
 
@@ -166,6 +210,16 @@ Deno.serve(async (request) => {
 
       if (existingReminders.has(reminderKey)) {
         skippedCount += 1
+        deliveryLogs.push({
+          todo_id: todo.id,
+          user_id: todo.user_id,
+          push_subscription_id: null,
+          reminder_type: reminderType,
+          status: 'skipped',
+          endpoint: null,
+          error_message: 'Reminder already recorded for this due date and window.',
+          response_status: null,
+        })
         continue
       }
 
@@ -186,12 +240,47 @@ Deno.serve(async (request) => {
           )
 
           delivered = true
+          deliveryLogs.push({
+            todo_id: todo.id,
+            user_id: todo.user_id,
+            push_subscription_id: subscription.id,
+            reminder_type: reminderType,
+            status: 'sent',
+            endpoint: subscription.endpoint,
+            error_message: null,
+            response_status: 201,
+          })
         } catch (pushError) {
-          if (typeof pushError === 'object' && pushError !== null && 'statusCode' in pushError) {
-            const statusCode = Reflect.get(pushError, 'statusCode')
+          const statusCode =
+            typeof pushError === 'object' && pushError !== null && 'statusCode' in pushError
+              ? Number(Reflect.get(pushError, 'statusCode'))
+              : null
+          const errorMessage = pushError instanceof Error ? pushError.message : 'Unknown push delivery failure.'
 
+          deliveryLogs.push({
+            todo_id: todo.id,
+            user_id: todo.user_id,
+            push_subscription_id: subscription.id,
+            reminder_type: reminderType,
+            status: 'failed',
+            endpoint: subscription.endpoint,
+            error_message: errorMessage,
+            response_status: statusCode,
+          })
+
+          if (typeof pushError === 'object' && pushError !== null && 'statusCode' in pushError) {
             if (statusCode === 404 || statusCode === 410) {
               await removeInvalidSubscription(subscription.id)
+              deliveryLogs.push({
+                todo_id: todo.id,
+                user_id: todo.user_id,
+                push_subscription_id: subscription.id,
+                reminder_type: reminderType,
+                status: 'subscription_removed',
+                endpoint: subscription.endpoint,
+                error_message: 'Subscription endpoint is invalid and has been removed.',
+                response_status: statusCode,
+              })
             }
           }
         }
@@ -217,6 +306,8 @@ Deno.serve(async (request) => {
       return Response.json({ error: insertError.message, sent: sentCount, skipped: skippedCount }, { status: 500 })
     }
   }
+
+  await insertDeliveryLogs(deliveryLogs)
 
   return Response.json({ sent: sentCount, skipped: skippedCount, scannedTodos: todoRows.length })
 })
