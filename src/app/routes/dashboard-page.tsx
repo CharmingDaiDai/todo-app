@@ -72,6 +72,7 @@ export function DashboardPage() {
   const [tagColor, setTagColor] = useState(tagColors[0])
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
   const [sortMode, setSortMode] = useState<'manual' | 'due' | 'priority'>('manual')
+  const [activeTagFilters, setActiveTagFilters] = useState<string[]>([])
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -82,7 +83,13 @@ export function DashboardPage() {
   const tags = tagsQuery.data ?? []
 
   const visibleTodos = useMemo(() => {
-    const filtered = todos.filter((todo) => (statusFilter === 'all' ? true : todo.status === statusFilter))
+    const filtered = todos.filter((todo) => {
+      const statusMatched = statusFilter === 'all' ? true : todo.status === statusFilter
+      const tagsMatched =
+        activeTagFilters.length === 0 ? true : activeTagFilters.every((tagId) => todo.tags.some((tag) => tag.id === tagId))
+
+      return statusMatched && tagsMatched
+    })
 
     if (sortMode === 'due') {
       return filtered.slice().sort((left, right) => {
@@ -97,7 +104,7 @@ export function DashboardPage() {
     }
 
     return filtered.slice().sort((left, right) => left.orderIndex - right.orderIndex)
-  }, [sortMode, statusFilter, todos])
+  }, [activeTagFilters, sortMode, statusFilter, todos])
 
   const pendingCount = todos.filter((todo) => todo.status === 'pending').length
   const completedCount = todos.length - pendingCount
@@ -109,6 +116,12 @@ export function DashboardPage() {
 
   const handleToggleTag = (tagId: string) => {
     setSelectedTagIds((current) =>
+      current.includes(tagId) ? current.filter((value) => value !== tagId) : [...current, tagId],
+    )
+  }
+
+  const handleToggleTagFilter = (tagId: string) => {
+    setActiveTagFilters((current) =>
       current.includes(tagId) ? current.filter((value) => value !== tagId) : [...current, tagId],
     )
   }
@@ -453,6 +466,33 @@ export function DashboardPage() {
           </div>
         </div>
 
+        {tags.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTagFilters([])}
+              className={`tag-chip ${activeTagFilters.length === 0 ? 'ring-2 ring-[var(--accent)]' : ''}`}
+            >
+              全部标签
+            </button>
+            {tags.map((tag) => {
+              const active = activeTagFilters.includes(tag.id)
+
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => handleToggleTagFilter(tag.id)}
+                  className={`tag-chip ${active ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                >
+                  <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
+                  {tag.name}
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
+
         {todosQuery.isLoading ? <div className="mt-6 text-sm muted">正在加载任务数据…</div> : null}
         {todosQuery.error ? (
           <div className="mt-6 panel-strong p-4 text-sm text-[#d11f3e]">
@@ -582,7 +622,7 @@ export function DashboardPage() {
           ))}
 
           {!todosQuery.isLoading && visibleTodos.length === 0 ? (
-            <div className="panel-strong p-6 text-sm muted">当前筛选条件下还没有任务。先在上方创建第一条 Todo。</div>
+            <div className="panel-strong p-6 text-sm muted">当前状态与标签筛选条件下还没有任务。先调整筛选条件，或者在上方创建第一条 Todo。</div>
           ) : null}
         </div>
       </section>
