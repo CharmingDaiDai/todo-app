@@ -13,6 +13,7 @@
 - dnd-kit 任务拖拽排序
 - Supabase Auth / Postgres / RLS / Edge Functions
 - vite-plugin-pwa 自定义 service worker
+- 任务描述字段轻量 Markdown 编辑与预览
 
 ## 与原始方案的差异
 
@@ -63,7 +64,6 @@ VITE_SUPABASE_ANON_KEY=
 
 ## 当前未完成范围
 
-- 描述字段的轻量 Markdown 支持
 - PWA 安装引导界面
 - 更完整的离线数据同步策略
 - 一个任务支持多个提醒时间

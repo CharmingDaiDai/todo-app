@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState, type ReactNode, type FormEvent } from 're
 import { AppShell } from '../../components/layout/app-shell'
 import { ThemeStage } from '../../components/theme/theme-stage'
 import { Button } from '../../components/ui/button'
+import { MarkdownPreview } from '../../components/ui/markdown-preview'
 import {
   useCreateTagMutation,
   useCreateTodoMutation,
@@ -279,6 +280,7 @@ export function DashboardPage() {
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [descriptionMode, setDescriptionMode] = useState<'write' | 'preview'>('write')
   const [dueDate, setDueDate] = useState('')
   const [reminderType, setReminderType] = useState<TodoReminderType>('none')
   const [reminderAt, setReminderAt] = useState('')
@@ -295,6 +297,7 @@ export function DashboardPage() {
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [editDescriptionMode, setEditDescriptionMode] = useState<'write' | 'preview'>('write')
   const [editDueDate, setEditDueDate] = useState('')
   const [editReminderType, setEditReminderType] = useState<TodoReminderType>('none')
   const [editReminderAt, setEditReminderAt] = useState('')
@@ -416,6 +419,7 @@ export function DashboardPage() {
 
       setTitle('')
       setDescription('')
+      setDescriptionMode('write')
       setDueDate('')
       setReminderType('none')
       setReminderAt('')
@@ -472,6 +476,7 @@ export function DashboardPage() {
     setEditingTodoId(todoId)
     setEditTitle(currentTitle)
     setEditDescription(currentDescription)
+    setEditDescriptionMode('write')
     setEditDueDate(toDateTimeLocalValue(currentDueDate))
     setEditReminderType(currentReminderType)
     setEditReminderAt(toDateTimeLocalValue(currentReminderAt))
@@ -486,6 +491,7 @@ export function DashboardPage() {
     setEditingTodoId(null)
     setEditTitle('')
     setEditDescription('')
+    setEditDescriptionMode('write')
     setEditDueDate('')
     setEditReminderType('none')
     setEditReminderAt('')
@@ -647,7 +653,26 @@ export function DashboardPage() {
 
             <div>
               <label className="mb-2 block text-sm font-semibold">描述</label>
-              <textarea className="field-input field-textarea" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="补充说明、上下文和期望结果" />
+              <div className="mb-2 flex flex-wrap gap-2">
+                {(['write', 'preview'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setDescriptionMode(mode)}
+                    className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em]', descriptionMode === mode ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--surface-strong)] muted')}
+                  >
+                    {mode === 'write' ? '编辑' : '预览'}
+                  </button>
+                ))}
+              </div>
+              {descriptionMode === 'write' ? (
+                <textarea className="field-input field-textarea" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="补充说明、上下文和期望结果，支持标题、列表、链接和粗体。" />
+              ) : (
+                <div className="field-input min-h-[112px]">
+                  <MarkdownPreview content={description} emptyState="在左侧编辑后，这里会显示 Markdown 预览。" />
+                </div>
+              )}
+              <div className="mt-2 text-xs muted">支持轻量 Markdown：标题、粗体、斜体、列表、引用、行内代码、链接、表格和任务列表。</div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -901,7 +926,27 @@ export function DashboardPage() {
                     {editingTodoId === todo.id ? (
                       <div className="space-y-3">
                         <input className="field-input" value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
-                        <textarea className="field-input field-textarea" value={editDescription} onChange={(event) => setEditDescription(event.target.value)} placeholder="补充说明、上下文和期望结果" />
+                        <div>
+                          <div className="mb-2 flex flex-wrap gap-2">
+                            {(['write', 'preview'] as const).map((mode) => (
+                              <button
+                                key={mode}
+                                type="button"
+                                onClick={() => setEditDescriptionMode(mode)}
+                                className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em]', editDescriptionMode === mode ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--surface-strong)] muted')}
+                              >
+                                {mode === 'write' ? '编辑' : '预览'}
+                              </button>
+                            ))}
+                          </div>
+                          {editDescriptionMode === 'write' ? (
+                            <textarea className="field-input field-textarea" value={editDescription} onChange={(event) => setEditDescription(event.target.value)} placeholder="补充说明、上下文和期望结果，支持标题、列表、链接和粗体。" />
+                          ) : (
+                            <div className="field-input min-h-[112px]">
+                              <MarkdownPreview content={editDescription} emptyState="编辑描述后，这里会显示 Markdown 预览。" />
+                            </div>
+                          )}
+                        </div>
                         <div className="grid gap-3 md:grid-cols-2">
                           <input className="field-input" type="datetime-local" value={editDueDate} onChange={(event) => setEditDueDate(event.target.value)} />
                           <select className="field-input field-select" value={editPriority} onChange={(event) => setEditPriority(Number(event.target.value) as TodoPriority)}>
@@ -1030,7 +1075,7 @@ export function DashboardPage() {
                           </span>
                         </div>
 
-                        {todo.description ? <p className="mt-2 text-sm muted">{todo.description}</p> : null}
+                        {todo.description ? <MarkdownPreview className="mt-3 text-sm" content={todo.description} /> : null}
 
                         <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.12em] muted">
                           <span>Due {formatDate(todo.dueDate)}</span>
