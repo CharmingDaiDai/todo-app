@@ -1,5 +1,6 @@
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
 if (!supabaseUrl || !supabasePublishableKey) {
   throw new Error('Missing Supabase environment variables. Check .env.local.')
@@ -18,4 +19,6 @@ try {
 export const env = {
   supabaseUrl,
   supabasePublishableKey,
+  vapidPublicKey:
+    vapidPublicKey && vapidPublicKey !== 'your-web-push-vapid-public-key' ? vapidPublicKey : null,
 } as const
