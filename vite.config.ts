@@ -5,6 +5,19 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          query: ['@tanstack/react-query', '@supabase/supabase-js', 'zustand'],
+          motion: ['framer-motion'],
+          dnd: ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+          icons: ['lucide-react'],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),

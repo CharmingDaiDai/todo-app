@@ -1,10 +1,43 @@
+import { lazy, Suspense } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
-import { DashboardPage } from './routes/dashboard-page'
-import { NotFoundPage } from './routes/not-found-page'
 import { ProtectedRoute } from './routes/protected-route'
 import { RootLayout } from './routes/root-layout'
-import { SettingsPage } from './routes/settings-page'
-import { SignInPage } from './routes/sign-in-page'
+
+const DashboardPage = lazy(async () => {
+  const module = await import('./routes/dashboard-page')
+  return { default: module.DashboardPage }
+})
+
+const NotFoundPage = lazy(async () => {
+  const module = await import('./routes/not-found-page')
+  return { default: module.NotFoundPage }
+})
+
+const SettingsPage = lazy(async () => {
+  const module = await import('./routes/settings-page')
+  return { default: module.SettingsPage }
+})
+
+const SignInPage = lazy(async () => {
+  const module = await import('./routes/sign-in-page')
+  return { default: module.SignInPage }
+})
+
+function RouteFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center px-6">
+      <div className="panel w-full max-w-md p-8 text-center">
+        <div className="text-xs uppercase tracking-[0.24em] muted">Deep Todo</div>
+        <div className="mt-4 text-2xl font-semibold">正在加载页面…</div>
+        <p className="mt-2 text-sm muted">路由已切换为按需加载，以降低首屏资源体积。</p>
+      </div>
+    </div>
+  )
+}
+
+function withSuspense(element: React.ReactNode) {
+  return <Suspense fallback={<RouteFallback />}>{element}</Suspense>
+}
 
 export const router = createBrowserRouter([
   {
@@ -17,27 +50,27 @@ export const router = createBrowserRouter([
       },
       {
         path: 'auth',
-        element: <SignInPage />,
+        element: withSuspense(<SignInPage />),
       },
       {
         path: 'app',
-        element: (
+        element: withSuspense(
           <ProtectedRoute>
             <DashboardPage />
-          </ProtectedRoute>
+          </ProtectedRoute>,
         ),
       },
       {
         path: 'settings',
-        element: (
+        element: withSuspense(
           <ProtectedRoute>
             <SettingsPage />
-          </ProtectedRoute>
+          </ProtectedRoute>,
         ),
       },
       {
         path: '*',
-        element: <NotFoundPage />,
+        element: withSuspense(<NotFoundPage />),
       },
     ],
   },
