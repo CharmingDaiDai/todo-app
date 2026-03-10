@@ -4,6 +4,7 @@ import { AppShell } from '../../components/layout/app-shell'
 import { Button } from '../../components/ui/button'
 import type { PushDeliveryLog, PushDeliveryLogStatus } from '../../features/notifications/api'
 import { usePushDeliveryLogsQuery, usePushNotifications } from '../../features/notifications/hooks'
+import { appRelease, formatVersionLabel } from '../../config/app-release'
 import { env } from '../../lib/env'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth-store'
@@ -65,6 +66,8 @@ export function SettingsPage() {
   const user = useAuthStore((state) => state.user)
   const [isBusy, setIsBusy] = useState(false)
   const [signOutError, setSignOutError] = useState<string | null>(null)
+  const [updateFeedback, setUpdateFeedback] = useState<string | null>(null)
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
   const notifications = usePushNotifications(user?.id)
   const deliveryLogs = usePushDeliveryLogsQuery(user?.id)
 
@@ -83,11 +86,43 @@ export function SettingsPage() {
     }
   }
 
+  const handleCheckUpdate = async () => {
+    setIsCheckingUpdate(true)
+    setUpdateFeedback(null)
+
+    try {
+      if (!('serviceWorker' in navigator)) {
+        setUpdateFeedback('当前浏览器不支持 Service Worker，无法执行更新检查。')
+        return
+      }
+
+      const registration = await navigator.serviceWorker.getRegistration()
+
+      if (!registration) {
+        setUpdateFeedback('当前页面还没有可用的 Service Worker 注册。')
+        return
+      }
+
+      await registration.update()
+
+      if (registration.waiting) {
+        setUpdateFeedback('发现新版本，刷新页面即可切换到最新版本。')
+        return
+      }
+
+      setUpdateFeedback('已检查完成，当前已是最新版本。')
+    } catch (error) {
+      setUpdateFeedback(error instanceof Error ? error.message : '更新检查失败。')
+    } finally {
+      setIsCheckingUpdate(false)
+    }
+  }
+
   return (
     <AppShell
       eyebrow="Preferences"
       title="Account and runtime configuration"
-      description="这里先承载认证状态、主题控制和通知能力的基础说明，后续会扩展为完整账号设置页。"
+      description="在这里统一管理账号信息、通知能力、运行时配置与软件版本。"
     >
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <section className="panel p-6">
@@ -119,6 +154,41 @@ export function SettingsPage() {
             </Button>
             {signOutError ? <div className="mt-3 text-sm text-[#d11f3e]">{signOutError}</div> : null}
           </div>
+        </section>
+
+        <section className="panel p-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-soft)] text-[var(--accent)]">
+              <Clock3 className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] muted">Software release</div>
+              <h3 className="mt-1 text-xl font-semibold">版本与更新</h3>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4">
+            <div className="panel-strong p-4">
+              <div className="text-xs uppercase tracking-[0.18em] muted">Current release</div>
+              <div className="mt-2 text-sm font-semibold">{formatVersionLabel(appRelease.version, appRelease.channel)}</div>
+              <div className="mt-2 text-sm muted">{appRelease.codename} · {appRelease.summary}</div>
+            </div>
+            <div className="panel-strong p-4">
+              <div className="text-xs uppercase tracking-[0.18em] muted">Version strategy</div>
+              <div className="mt-2 text-sm">版本号以 package.json 为唯一来源，设置页自动读取并展示；后续只需要更新一次语义化版本号即可同步到应用内。</div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button tone="secondary" onClick={() => void handleCheckUpdate()} disabled={isCheckingUpdate}>
+              {isCheckingUpdate ? '检查中...' : '检查更新'}
+            </Button>
+            <Button tone="secondary" onClick={() => window.location.reload()}>
+              刷新到最新版本
+            </Button>
+          </div>
+
+          {updateFeedback ? <div className="mt-4 text-sm muted">{updateFeedback}</div> : null}
         </section>
 
         <section className="panel p-6">
@@ -162,7 +232,7 @@ export function SettingsPage() {
             {notifications.error ? <div className="text-sm text-[#d11f3e]">{notifications.error}</div> : null}
 
             <p>订阅成功后，浏览器 Push Subscription 会写入 `push_subs` 表，为后续 Supabase Edge Function 与 `pg_cron` 链路提供目标设备信息。</p>
-            <p>当前仅完成前端链路和 service worker 推送处理。真正的定时提醒下发仍需要服务端配置 VAPID 密钥和 Edge Function。</p>
+            <p>如果启用了推送但没有收到提醒，请先确认 Service Worker 已更新到最新版本，再检查 VAPID 与 Edge Function 配置。</p>
           </div>
         </section>
 

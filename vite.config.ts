@@ -2,9 +2,13 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import packageJson from './package.json'
 
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(packageJson.version),
+  },
   build: {
     rollupOptions: {
       output: {
@@ -27,7 +31,7 @@ export default defineConfig({
       filename: 'sw.ts',
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['vite.svg'],
+      includeAssets: ['deep-todo-mark.svg'],
       manifest: {
         name: 'Deep Todo PWA',
         short_name: 'DeepTodo',
@@ -38,7 +42,7 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: '/vite.svg',
+            src: '/deep-todo-mark.svg',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'any',

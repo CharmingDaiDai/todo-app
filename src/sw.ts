@@ -26,8 +26,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: payload?.icon ?? '/vite.svg',
-      badge: payload?.badge ?? '/vite.svg',
+      icon: payload?.icon ?? '/deep-todo-mark.svg',
+      badge: payload?.badge ?? '/deep-todo-mark.svg',
       tag: payload?.tag ?? 'deep-todo-reminder',
       data: {
         url: payload?.url ?? '/app',

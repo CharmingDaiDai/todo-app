@@ -103,8 +103,8 @@ function createNotificationPayload(todo: TodoRow, reminderType: ReminderType) {
     body: reminderType === 'custom_date' ? `任务“${todo.title}”已到达你选择的提醒时间。` : `任务“${todo.title}”将在 ${minutesLabel} 到期。`,
     url: '/app',
     tag: `${todo.id}:${reminderType}`,
-    icon: '/vite.svg',
-    badge: '/vite.svg',
+    icon: '/deep-todo-mark.svg',
+    badge: '/deep-todo-mark.svg',
   }
 }
 

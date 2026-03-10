@@ -12,17 +12,17 @@ type AuthMode = 'signin' | 'signup' | 'magic'
 const modeContent: Record<AuthMode, { title: string; subtitle: string; cta: string }> = {
   signin: {
     title: '邮箱 + 密码登录',
-    subtitle: '进入你的私有任务空间，开始构建完整的 Todo 工作流。',
+    subtitle: '进入你的私有任务空间，继续处理标签、子任务、拖拽排序和提醒。',
     cta: 'Sign in',
   },
   signup: {
     title: '创建新账户',
-    subtitle: '注册后即可获得独立数据空间，并由 RLS 保证隔离。',
+    subtitle: '注册后即可拥有独立数据空间，并启用跨设备同步的个人任务工作台。',
     cta: 'Create account',
   },
   magic: {
     title: '发送 Magic Link',
-    subtitle: '输入邮箱，系统会发送免密登录链接到你的收件箱。',
+    subtitle: '输入邮箱，系统会发送免密登录链接，让你快速回到任务列表。',
     cta: 'Send link',
   },
 }
@@ -95,25 +95,25 @@ export function SignInPage() {
             <div className="text-xs uppercase tracking-[0.22em] muted">Deep Todo PWA</div>
             <h1 className="mt-4 max-w-3xl text-4xl font-semibold md:text-6xl">Todo, but with system-grade polish and theme depth.</h1>
             <p className="mt-5 max-w-2xl text-base muted md:text-lg">
-              首轮实现已经接入 Supabase Auth、PWA 基线以及三套设计语言的全局 token，为后续任务流与推送提醒提供稳定外壳。
+              面向真实日常工作的任务系统：支持标签、子任务、截止时间、提醒、Markdown 描述、Web Push 与多端一致的 PWA 体验。
             </p>
           </div>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             <div className="panel-strong p-5">
               <Mail className="h-5 w-5 text-[var(--accent)]" />
-              <div className="mt-4 font-semibold">Auth ready</div>
-              <p className="mt-2 text-sm muted">邮箱密码与 Magic Link 已在前端连通 Supabase SDK。</p>
+              <div className="mt-4 font-semibold">Fast capture</div>
+              <p className="mt-2 text-sm muted">快速记录任务、补充标签与子任务，再按优先级和到期时间推进。</p>
             </div>
             <div className="panel-strong p-5">
               <Sparkles className="h-5 w-5 text-[var(--accent)]" />
-              <div className="mt-4 font-semibold">Deep themes</div>
-              <p className="mt-2 text-sm muted">Zen、Glass、Brutal 均已接入明暗主题切换。</p>
+              <div className="mt-4 font-semibold">Readable detail</div>
+              <p className="mt-2 text-sm muted">描述区支持轻量 Markdown，任务内容可以同时兼顾结构化与可读性。</p>
             </div>
             <div className="panel-strong p-5">
               <ShieldEllipsis className="h-5 w-5 text-[var(--accent)]" />
-              <div className="mt-4 font-semibold">RLS first</div>
-              <p className="mt-2 text-sm muted">数据库脚本将按 auth.uid() 做默认隔离策略落地。</p>
+              <div className="mt-4 font-semibold">Reminder loop</div>
+              <p className="mt-2 text-sm muted">支持预设提醒、自定义时间与浏览器推送，减少任务临期遗漏。</p>
             </div>
           </div>
 
