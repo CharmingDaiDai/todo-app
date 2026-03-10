@@ -1,7 +1,12 @@
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const runtimeConfig =
+  typeof window !== 'undefined' ? window.__DEEP_TODO_RUNTIME_CONFIG__ : undefined
+
+const supabaseUrl = runtimeConfig?.supabaseUrl ?? import.meta.env.VITE_SUPABASE_URL
 const supabasePublishableKey =
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.env.VITE_SUPABASE_ANON_KEY
-const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
+  runtimeConfig?.supabasePublishableKey ??
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+const vapidPublicKey = runtimeConfig?.vapidPublicKey ?? import.meta.env.VITE_VAPID_PUBLIC_KEY
 
 if (!supabaseUrl || !supabasePublishableKey) {
   throw new Error('Missing Supabase environment variables. Define VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY or VITE_SUPABASE_ANON_KEY.')
