@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { CalendarClock, ListChecks, Plus, Tags, Trash2 } from 'lucide-react'
+import { CalendarClock, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { AppShell } from '../../components/layout/app-shell'
 import { ThemeStage } from '../../components/theme/theme-stage'
@@ -12,6 +12,7 @@ import {
   useTodosQuery,
   useToggleSubtaskMutation,
   useToggleTodoStatusMutation,
+  useUpdateTodoMutation,
 } from '../../features/todos/hooks'
 import type { TodoPriority } from '../../features/todos/types'
 import { useAuthStore } from '../../store/auth-store'
@@ -36,6 +37,16 @@ function formatDate(date: string | null) {
   }).format(new Date(date))
 }
 
+function toDateTimeLocalValue(date: string | null) {
+  if (!date) return ''
+
+  const value = new Date(date)
+  const offset = value.getTimezoneOffset()
+  const localDate = new Date(value.getTime() - offset * 60_000)
+
+  return localDate.toISOString().slice(0, 16)
+}
+
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user)
   const language = useThemeStore((state) => state.language)
@@ -48,6 +59,7 @@ export function DashboardPage() {
   const toggleTodoStatusMutation = useToggleTodoStatusMutation(userId)
   const deleteTodoMutation = useDeleteTodoMutation(userId)
   const toggleSubtaskMutation = useToggleSubtaskMutation(userId)
+  const updateTodoMutation = useUpdateTodoMutation(userId)
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -60,6 +72,11 @@ export function DashboardPage() {
   const [tagColor, setTagColor] = useState(tagColors[0])
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
   const [sortMode, setSortMode] = useState<'manual' | 'due' | 'priority'>('manual')
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editDueDate, setEditDueDate] = useState('')
+  const [editPriority, setEditPriority] = useState<TodoPriority>(2)
 
   const todos = todosQuery.data ?? []
   const tags = tagsQuery.data ?? []
@@ -151,6 +168,48 @@ export function DashboardPage() {
 
       setTagName('')
       setTagColor(tagColors[(tagColors.indexOf(tagColor) + 1) % tagColors.length])
+    } catch {
+      return
+    }
+  }
+
+  const handleStartEdit = (
+    todoId: string,
+    currentTitle: string,
+    currentDescription: string,
+    currentDueDate: string | null,
+    currentPriority: TodoPriority,
+  ) => {
+    setEditingTodoId(todoId)
+    setEditTitle(currentTitle)
+    setEditDescription(currentDescription)
+    setEditDueDate(toDateTimeLocalValue(currentDueDate))
+    setEditPriority(currentPriority)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingTodoId(null)
+    setEditTitle('')
+    setEditDescription('')
+    setEditDueDate('')
+    setEditPriority(2)
+  }
+
+  const handleUpdateTodo = async (todoId: string) => {
+    if (!editTitle.trim()) {
+      return
+    }
+
+    try {
+      await updateTodoMutation.mutateAsync({
+        id: todoId,
+        title: editTitle.trim(),
+        description: editDescription.trim(),
+        dueDate: editDueDate ? new Date(editDueDate).toISOString() : null,
+        priority: editPriority,
+      })
+
+      handleCancelEdit()
     } catch {
       return
     }
@@ -426,20 +485,40 @@ export function DashboardPage() {
                   />
 
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className={`text-lg font-semibold ${todo.status === 'completed' ? 'line-through opacity-60' : ''}`}>{todo.title}</h4>
-                      <span className="tag-chip" style={{ borderColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }}>
-                        <span className="tag-chip-dot" style={{ backgroundColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }} />
-                        {priorityOptions.find((item) => item.value === todo.priority)?.label}
-                      </span>
-                    </div>
+                    {editingTodoId === todo.id ? (
+                      <div className="space-y-3">
+                        <input className="field-input" value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
+                        <textarea className="field-input field-textarea" value={editDescription} onChange={(event) => setEditDescription(event.target.value)} placeholder="补充说明、上下文和期望结果" />
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <input className="field-input" type="datetime-local" value={editDueDate} onChange={(event) => setEditDueDate(event.target.value)} />
+                          <select className="field-input field-select" value={editPriority} onChange={(event) => setEditPriority(Number(event.target.value) as TodoPriority)}>
+                            {priorityOptions.map((item) => (
+                              <option key={item.value} value={item.value}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        {updateTodoMutation.error ? <div className="text-sm text-[#d11f3e]">{updateTodoMutation.error.message}</div> : null}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className={`text-lg font-semibold ${todo.status === 'completed' ? 'line-through opacity-60' : ''}`}>{todo.title}</h4>
+                          <span className="tag-chip" style={{ borderColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }}>
+                            <span className="tag-chip-dot" style={{ backgroundColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }} />
+                            {priorityOptions.find((item) => item.value === todo.priority)?.label}
+                          </span>
+                        </div>
 
-                    {todo.description ? <p className="mt-2 text-sm muted">{todo.description}</p> : null}
+                        {todo.description ? <p className="mt-2 text-sm muted">{todo.description}</p> : null}
 
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.12em] muted">
-                      <span>Due {formatDate(todo.dueDate)}</span>
-                      <span>Created {formatDate(todo.createdAt)}</span>
-                    </div>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.12em] muted">
+                          <span>Due {formatDate(todo.dueDate)}</span>
+                          <span>Created {formatDate(todo.createdAt)}</span>
+                        </div>
+                      </>
+                    )}
 
                     {todo.tags.length > 0 ? (
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -473,6 +552,26 @@ export function DashboardPage() {
                 </div>
 
                 <div className="flex gap-2 lg:flex-col">
+                  {editingTodoId === todo.id ? (
+                    <>
+                      <Button tone="secondary" onClick={() => void handleUpdateTodo(todo.id)} disabled={updateTodoMutation.isPending}>
+                        <Save className="h-4 w-4" />
+                        保存
+                      </Button>
+                      <Button tone="ghost" onClick={handleCancelEdit}>
+                        <X className="h-4 w-4" />
+                        取消
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      tone="ghost"
+                      onClick={() => handleStartEdit(todo.id, todo.title, todo.description, todo.dueDate, todo.priority)}
+                    >
+                      <PencilLine className="h-4 w-4" />
+                      编辑
+                    </Button>
+                  )}
                   <Button tone="ghost" onClick={() => deleteTodoMutation.mutate(todo.id)} disabled={deleteTodoMutation.isPending}>
                     <Trash2 className="h-4 w-4" />
                     删除
