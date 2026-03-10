@@ -1,6 +1,11 @@
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { env } from '../../lib/env'
-import { deletePushSubscription, upsertPushSubscription } from './api'
+import { deletePushSubscription, listPushDeliveryLogs, upsertPushSubscription } from './api'
+
+export const notificationKeys = {
+  deliveryLogs: (userId: string) => ['notifications', 'delivery-logs', userId] as const,
+}
 
 function isNotificationSupported() {
   return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
@@ -162,4 +167,12 @@ export function usePushNotifications(userId: string | undefined) {
     subscribe,
     unsubscribe,
   }
+}
+
+export function usePushDeliveryLogsQuery(userId: string | undefined) {
+  return useQuery({
+    queryKey: userId ? notificationKeys.deliveryLogs(userId) : ['notifications', 'delivery-logs', 'anonymous'],
+    queryFn: () => listPushDeliveryLogs(userId as string),
+    enabled: Boolean(userId),
+  })
 }
