@@ -18,9 +18,22 @@ create table if not exists public.todos (
   status text not null default 'pending' check (status in ('pending', 'completed')),
   priority smallint not null default 2 check (priority between 1 and 3),
   due_date timestamptz,
+  reminder_type text not null default 'none',
+  reminder_at timestamptz,
   order_index double precision not null default 1000,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
+);
+
+alter table public.todos add column if not exists reminder_type text not null default 'none';
+alter table public.todos add column if not exists reminder_at timestamptz;
+alter table public.todos drop constraint if exists todos_reminder_type_check;
+alter table public.todos add constraint todos_reminder_type_check check (reminder_type in ('none', 'hour', 'ten_minutes', 'custom_date'));
+alter table public.todos drop constraint if exists todos_reminder_config_check;
+alter table public.todos add constraint todos_reminder_config_check check (
+  (reminder_type = 'none' and reminder_at is null)
+  or (reminder_type in ('hour', 'ten_minutes') and due_date is not null and reminder_at is null)
+  or (reminder_type = 'custom_date' and reminder_at is not null)
 );
 
 create table if not exists public.subtasks (
@@ -63,6 +76,7 @@ create table if not exists public.push_subs (
 
 create index if not exists idx_todos_user_id_created_at on public.todos (user_id, created_at desc);
 create index if not exists idx_todos_user_id_due_date on public.todos (user_id, due_date asc nulls last);
+create index if not exists idx_todos_user_id_reminder_at on public.todos (user_id, reminder_at asc nulls last);
 create index if not exists idx_todos_user_id_order_index on public.todos (user_id, order_index asc);
 create index if not exists idx_subtasks_todo_id on public.subtasks (todo_id, order_index asc);
 create index if not exists idx_tags_user_id on public.tags (user_id, name asc);

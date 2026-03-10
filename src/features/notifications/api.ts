@@ -7,12 +7,13 @@ export type PushSubscriptionRecord = {
 }
 
 export type PushDeliveryLogStatus = 'sent' | 'failed' | 'subscription_removed' | 'skipped'
+export type PushDeliveryReminderType = 'hour' | 'ten_minutes' | 'custom_date'
 
 export type PushDeliveryLog = {
   id: string
   todoId: string | null
   todoTitle: string | null
-  reminderType: 'hour' | 'ten_minutes' | null
+  reminderType: PushDeliveryReminderType | null
   status: PushDeliveryLogStatus
   endpoint: string | null
   errorMessage: string | null

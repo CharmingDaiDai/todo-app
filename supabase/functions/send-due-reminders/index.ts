@@ -1,13 +1,17 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
 
-type ReminderType = 'hour' | 'ten_minutes'
+type ReminderType = 'hour' | 'ten_minutes' | 'custom_date'
+
+type TodoReminderType = 'none' | ReminderType
 
 type TodoRow = {
   id: string
   user_id: string
   title: string
-  due_date: string
+  due_date: string | null
+  reminder_type: TodoReminderType
+  reminder_at: string | null
 }
 
 type PushSubscriptionRow = {
@@ -37,6 +41,8 @@ type PushDeliveryLogRow = {
 
 const HOUR_WINDOW_MINUTES = 60
 const TEN_MINUTES_WINDOW = 10
+const CUSTOM_WINDOW_PAST_MINUTES = 5
+const CUSTOM_WINDOW_FUTURE_MINUTES = 1
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -62,27 +68,39 @@ function createReminderKey(todoId: string, reminderType: ReminderType, dueDate: 
   return `${todoId}:${reminderType}:${dueDate}`
 }
 
-function buildReminderTypes(dueDate: string): ReminderType[] {
-  const diffInMinutes = Math.floor((new Date(dueDate).getTime() - Date.now()) / 60_000)
-  const reminderTypes: ReminderType[] = []
+function buildReminderTargets(todo: TodoRow) {
+  const reminderTargets: Array<{ reminderType: ReminderType; scheduledAt: string }> = []
 
-  if (diffInMinutes > TEN_MINUTES_WINDOW && diffInMinutes <= HOUR_WINDOW_MINUTES) {
-    reminderTypes.push('hour')
+  if ((todo.reminder_type === 'hour' || todo.reminder_type === 'ten_minutes') && todo.due_date) {
+    const diffInMinutes = Math.floor((new Date(todo.due_date).getTime() - Date.now()) / 60_000)
+
+    if (todo.reminder_type === 'hour' && diffInMinutes > TEN_MINUTES_WINDOW && diffInMinutes <= HOUR_WINDOW_MINUTES) {
+      reminderTargets.push({ reminderType: 'hour', scheduledAt: todo.due_date })
+    }
+
+    if (todo.reminder_type === 'ten_minutes' && diffInMinutes > 0 && diffInMinutes <= TEN_MINUTES_WINDOW) {
+      reminderTargets.push({ reminderType: 'ten_minutes', scheduledAt: todo.due_date })
+    }
   }
 
-  if (diffInMinutes > 0 && diffInMinutes <= TEN_MINUTES_WINDOW) {
-    reminderTypes.push('ten_minutes')
+  if (todo.reminder_type === 'custom_date' && todo.reminder_at) {
+    const diffInMinutes = (new Date(todo.reminder_at).getTime() - Date.now()) / 60_000
+
+    if (diffInMinutes >= -CUSTOM_WINDOW_PAST_MINUTES && diffInMinutes <= CUSTOM_WINDOW_FUTURE_MINUTES) {
+      reminderTargets.push({ reminderType: 'custom_date', scheduledAt: todo.reminder_at })
+    }
   }
 
-  return reminderTypes
+  return reminderTargets
 }
 
 function createNotificationPayload(todo: TodoRow, reminderType: ReminderType) {
-  const minutesLabel = reminderType === 'hour' ? '1 小时内' : '10 分钟内'
+  const minutesLabel =
+    reminderType === 'hour' ? '1 小时内' : reminderType === 'ten_minutes' ? '10 分钟内' : '你设定的提醒时间已到'
 
   return {
     title: 'Deep Todo 到期提醒',
-    body: `任务“${todo.title}”将在 ${minutesLabel} 到期。`,
+    body: reminderType === 'custom_date' ? `任务“${todo.title}”已到达你选择的提醒时间。` : `任务“${todo.title}”将在 ${minutesLabel} 到期。`,
     url: '/app',
     tag: `${todo.id}:${reminderType}`,
     icon: '/vite.svg',
@@ -111,17 +129,11 @@ Deno.serve(async (request) => {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  const nowIso = new Date().toISOString()
-  const oneHourLaterIso = new Date(Date.now() + HOUR_WINDOW_MINUTES * 60_000).toISOString()
-
   const { data: todos, error: todosError } = await supabase
     .from('todos')
-    .select('id, user_id, title, due_date')
+    .select('id, user_id, title, due_date, reminder_type, reminder_at')
     .eq('status', 'pending')
-    .not('due_date', 'is', null)
-    .gt('due_date', nowIso)
-    .lte('due_date', oneHourLaterIso)
-    .order('due_date', { ascending: true })
+    .neq('reminder_type', 'none')
 
   if (todosError) {
     return Response.json({ error: todosError.message }, { status: 500 })
@@ -167,9 +179,9 @@ Deno.serve(async (request) => {
   let skippedCount = 0
 
   for (const todo of todoRows) {
-    const dueReminderTypes = buildReminderTypes(todo.due_date)
+    const dueReminderTargets = buildReminderTargets(todo)
 
-    if (dueReminderTypes.length === 0) {
+    if (dueReminderTargets.length === 0) {
       skippedCount += 1
       deliveryLogs.push({
         todo_id: todo.id,
@@ -187,9 +199,9 @@ Deno.serve(async (request) => {
     const userSubscriptions = subscriptionsByUser.get(todo.user_id) ?? []
 
     if (userSubscriptions.length === 0) {
-      skippedCount += dueReminderTypes.length
+      skippedCount += dueReminderTargets.length
 
-      for (const reminderType of dueReminderTypes) {
+      for (const { reminderType } of dueReminderTargets) {
         deliveryLogs.push({
           todo_id: todo.id,
           user_id: todo.user_id,
@@ -205,8 +217,8 @@ Deno.serve(async (request) => {
       continue
     }
 
-    for (const reminderType of dueReminderTypes) {
-      const reminderKey = createReminderKey(todo.id, reminderType, todo.due_date)
+    for (const { reminderType, scheduledAt } of dueReminderTargets) {
+      const reminderKey = createReminderKey(todo.id, reminderType, scheduledAt)
 
       if (existingReminders.has(reminderKey)) {
         skippedCount += 1
@@ -291,7 +303,7 @@ Deno.serve(async (request) => {
           todo_id: todo.id,
           user_id: todo.user_id,
           reminder_type: reminderType,
-          due_date: todo.due_date,
+          due_date: scheduledAt,
         })
         existingReminders.add(reminderKey)
         sentCount += 1

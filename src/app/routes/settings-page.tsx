@@ -37,6 +37,7 @@ const deliveryStatusMeta: Record<
 const reminderTypeLabelMap = {
   hour: '提前 1 小时',
   ten_minutes: '提前 10 分钟',
+  custom_date: '自定义时间',
 } as const
 
 function formatLogTime(value: string) {

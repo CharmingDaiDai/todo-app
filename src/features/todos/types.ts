@@ -2,6 +2,8 @@ export type TodoStatus = 'pending' | 'completed'
 
 export type TodoPriority = 1 | 2 | 3
 
+export type TodoReminderType = 'none' | 'hour' | 'ten_minutes' | 'custom_date'
+
 export type Tag = {
   id: string
   name: string
@@ -26,6 +28,8 @@ export type Todo = {
   status: TodoStatus
   priority: TodoPriority
   dueDate: string | null
+  reminderType: TodoReminderType
+  reminderAt: string | null
   orderIndex: number
   createdAt: string
   updatedAt: string
@@ -45,6 +49,8 @@ export type CreateTodoInput = {
   description: string
   priority: TodoPriority
   dueDate: string | null
+  reminderType: TodoReminderType
+  reminderAt: string | null
   tagIds: string[]
   subtasks: Array<{
     title: string
@@ -57,6 +63,8 @@ export type UpdateTodoInput = {
   description?: string
   priority?: TodoPriority
   dueDate?: string | null
+  reminderType?: TodoReminderType
+  reminderAt?: string | null
   status?: TodoStatus
 }
 

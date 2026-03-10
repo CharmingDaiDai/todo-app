@@ -9,6 +9,8 @@ type TodoRow = {
   status: 'pending' | 'completed'
   priority: 1 | 2 | 3
   due_date: string | null
+  reminder_type: 'none' | 'hour' | 'ten_minutes' | 'custom_date'
+  reminder_at: string | null
   order_index: number
   created_at: string
   updated_at: string
@@ -68,6 +70,8 @@ function mapTodo(row: TodoRow): Todo {
     status: row.status,
     priority: row.priority,
     dueDate: row.due_date,
+    reminderType: row.reminder_type,
+    reminderAt: row.reminder_at,
     orderIndex: row.order_index,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -128,6 +132,8 @@ export async function listTodos(userId: string): Promise<Todo[]> {
         status,
         priority,
         due_date,
+        reminder_type,
+        reminder_at,
         order_index,
         created_at,
         updated_at,
@@ -179,6 +185,8 @@ export async function createTodo(input: CreateTodoInput): Promise<void> {
       description: input.description,
       priority: input.priority,
       due_date: input.dueDate,
+      reminder_type: input.reminderType,
+      reminder_at: input.reminderAt,
       status: 'pending',
       order_index: nextOrderIndex,
     })
@@ -229,6 +237,8 @@ export async function updateTodo(input: UpdateTodoInput): Promise<void> {
   if (input.description !== undefined) payload.description = input.description
   if (input.priority !== undefined) payload.priority = input.priority
   if (input.dueDate !== undefined) payload.due_date = input.dueDate
+  if (input.reminderType !== undefined) payload.reminder_type = input.reminderType
+  if (input.reminderAt !== undefined) payload.reminder_at = input.reminderAt
   if (input.status !== undefined) payload.status = input.status
 
   const { error } = await supabase.from('todos').update(payload).eq('id', input.id)

@@ -9,7 +9,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { motion } from 'framer-motion'
-import { CalendarClock, GripVertical, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
+import { BellRing, CalendarClock, GripVertical, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode, type FormEvent } from 'react'
 import { AppShell } from '../../components/layout/app-shell'
 import { ThemeStage } from '../../components/theme/theme-stage'
@@ -29,7 +29,7 @@ import {
   useUpdateTodoMutation,
 } from '../../features/todos/hooks'
 import { calculateNewOrderIndex } from '../../features/todos/order'
-import type { Subtask, TodoPriority } from '../../features/todos/types'
+import type { Subtask, TodoPriority, TodoReminderType } from '../../features/todos/types'
 import { cn } from '../../lib/cn'
 import { useAuthStore } from '../../store/auth-store'
 import { useThemeStore } from '../../store/theme-store'
@@ -41,6 +41,13 @@ const priorityOptions: Array<{ value: TodoPriority; label: string; tone: string 
 ]
 
 const tagColors = ['#1258d6', '#ff4d00', '#2f8f58', '#8a43ff', '#d11f3e', '#f59e0b']
+
+const reminderOptions: Array<{ value: TodoReminderType; label: string; hint: string }> = [
+  { value: 'none', label: '不提醒', hint: '只记录截止时间，不触发 Web Push。' },
+  { value: 'hour', label: '提前 1 小时', hint: '在截止时间前 1 小时触发提醒。' },
+  { value: 'ten_minutes', label: '提前 10 分钟', hint: '适合临近截止前的短提醒。' },
+  { value: 'custom_date', label: '自定义日期', hint: '选择一个独立于截止时间的提醒时刻。' },
+]
 
 function formatDate(date: string | null) {
   if (!date) return '未设置'
@@ -61,6 +68,72 @@ function toDateTimeLocalValue(date: string | null) {
   const localDate = new Date(value.getTime() - offset * 60_000)
 
   return localDate.toISOString().slice(0, 16)
+}
+
+function resolveReminderConfig(reminderType: TodoReminderType, dueDate: string, reminderAt: string) {
+  if (reminderType === 'none') {
+    return {
+      reminderType,
+      reminderAt: null,
+      error: null,
+    }
+  }
+
+  if (reminderType === 'custom_date') {
+    if (!reminderAt) {
+      return {
+        reminderType,
+        reminderAt: null,
+        error: '请选择自定义提醒时间。',
+      }
+    }
+
+    const parsedReminderAt = new Date(reminderAt)
+
+    if (Number.isNaN(parsedReminderAt.getTime())) {
+      return {
+        reminderType,
+        reminderAt: null,
+        error: '自定义提醒时间无效。',
+      }
+    }
+
+    return {
+      reminderType,
+      reminderAt: parsedReminderAt.toISOString(),
+      error: null,
+    }
+  }
+
+  if (!dueDate) {
+    return {
+      reminderType,
+      reminderAt: null,
+      error: '预设提醒需要先设置截止时间。',
+    }
+  }
+
+  return {
+    reminderType,
+    reminderAt: null,
+    error: null,
+  }
+}
+
+function getReminderSummary(reminderType: TodoReminderType, reminderAt: string | null) {
+  if (reminderType === 'none') {
+    return '未设置提醒'
+  }
+
+  if (reminderType === 'hour') {
+    return '提前 1 小时提醒'
+  }
+
+  if (reminderType === 'ten_minutes') {
+    return '提前 10 分钟提醒'
+  }
+
+  return reminderAt ? `自定义提醒 ${formatDate(reminderAt)}` : '自定义提醒'
 }
 
 type SortableTodoCardProps = {
@@ -131,10 +204,13 @@ export function DashboardPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [reminderType, setReminderType] = useState<TodoReminderType>('none')
+  const [reminderAt, setReminderAt] = useState('')
   const [priority, setPriority] = useState<TodoPriority>(2)
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [draftSubtask, setDraftSubtask] = useState('')
   const [subtasks, setSubtasks] = useState<string[]>([])
+  const [createFormError, setCreateFormError] = useState<string | null>(null)
   const [tagName, setTagName] = useState('')
   const [tagColor, setTagColor] = useState(tagColors[0])
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
@@ -144,10 +220,13 @@ export function DashboardPage() {
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [editDueDate, setEditDueDate] = useState('')
+  const [editReminderType, setEditReminderType] = useState<TodoReminderType>('none')
+  const [editReminderAt, setEditReminderAt] = useState('')
   const [editPriority, setEditPriority] = useState<TodoPriority>(2)
   const [editSelectedTagIds, setEditSelectedTagIds] = useState<string[]>([])
   const [editSubtasks, setEditSubtasks] = useState<Array<{ title: string; isCompleted: boolean }>>([])
   const [editDraftSubtask, setEditDraftSubtask] = useState('')
+  const [editFormError, setEditFormError] = useState<string | null>(null)
 
   const todos = todosQuery.data ?? []
   const tags = tagsQuery.data ?? []
@@ -237,6 +316,15 @@ export function DashboardPage() {
       return
     }
 
+    const reminderConfig = resolveReminderConfig(reminderType, dueDate, reminderAt)
+
+    if (reminderConfig.error) {
+      setCreateFormError(reminderConfig.error)
+      return
+    }
+
+    setCreateFormError(null)
+
     try {
       await createTodoMutation.mutateAsync({
         userId,
@@ -244,6 +332,8 @@ export function DashboardPage() {
         description: description.trim(),
         priority,
         dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+        reminderType: reminderConfig.reminderType,
+        reminderAt: reminderConfig.reminderAt,
         tagIds: selectedTagIds,
         subtasks: subtasks.map((item) => ({ title: item })),
       })
@@ -251,10 +341,13 @@ export function DashboardPage() {
       setTitle('')
       setDescription('')
       setDueDate('')
+      setReminderType('none')
+      setReminderAt('')
       setPriority(2)
       setSelectedTagIds([])
       setSubtasks([])
       setDraftSubtask('')
+      setCreateFormError(null)
     } catch {
       return
     }
@@ -294,6 +387,8 @@ export function DashboardPage() {
     currentTitle: string,
     currentDescription: string,
     currentDueDate: string | null,
+    currentReminderType: TodoReminderType,
+    currentReminderAt: string | null,
     currentPriority: TodoPriority,
     currentTagIds: string[],
     currentSubtasks: Subtask[],
@@ -302,10 +397,13 @@ export function DashboardPage() {
     setEditTitle(currentTitle)
     setEditDescription(currentDescription)
     setEditDueDate(toDateTimeLocalValue(currentDueDate))
+    setEditReminderType(currentReminderType)
+    setEditReminderAt(toDateTimeLocalValue(currentReminderAt))
     setEditPriority(currentPriority)
     setEditSelectedTagIds(currentTagIds)
     setEditSubtasks(currentSubtasks.map((subtask) => ({ title: subtask.title, isCompleted: subtask.isCompleted })))
     setEditDraftSubtask('')
+    setEditFormError(null)
   }
 
   const handleCancelEdit = () => {
@@ -313,10 +411,13 @@ export function DashboardPage() {
     setEditTitle('')
     setEditDescription('')
     setEditDueDate('')
+    setEditReminderType('none')
+    setEditReminderAt('')
     setEditPriority(2)
     setEditSelectedTagIds([])
     setEditSubtasks([])
     setEditDraftSubtask('')
+    setEditFormError(null)
   }
 
   const handleUpdateTodo = async (todoId: string) => {
@@ -324,12 +425,23 @@ export function DashboardPage() {
       return
     }
 
+    const reminderConfig = resolveReminderConfig(editReminderType, editDueDate, editReminderAt)
+
+    if (reminderConfig.error) {
+      setEditFormError(reminderConfig.error)
+      return
+    }
+
+    setEditFormError(null)
+
     try {
       await updateTodoMutation.mutateAsync({
         id: todoId,
         title: editTitle.trim(),
         description: editDescription.trim(),
         dueDate: editDueDate ? new Date(editDueDate).toISOString() : null,
+        reminderType: reminderConfig.reminderType,
+        reminderAt: reminderConfig.reminderAt,
         priority: editPriority,
       })
 
@@ -473,6 +585,32 @@ export function DashboardPage() {
 
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <BellRing className="h-4 w-4" />
+                提醒
+              </div>
+              <select className="field-input field-select" value={reminderType} onChange={(event) => setReminderType(event.target.value as TodoReminderType)}>
+                {reminderOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <div className="mt-2 text-sm muted">{reminderOptions.find((item) => item.value === reminderType)?.hint}</div>
+
+              {reminderType === 'custom_date' ? (
+                <div className="mt-3">
+                  <label className="mb-2 block text-sm font-semibold">提醒时间</label>
+                  <input className="field-input" type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} />
+                </div>
+              ) : null}
+
+              {(reminderType === 'hour' || reminderType === 'ten_minutes') && !dueDate ? (
+                <div className="mt-3 text-sm text-[#d11f3e]">预设提醒依赖截止时间，请先填写上面的截止时间。</div>
+              ) : null}
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
                 <Tags className="h-4 w-4" />
                 标签
               </div>
@@ -530,6 +668,7 @@ export function DashboardPage() {
               <Button type="submit" disabled={createTodoMutation.isPending}>
                 {createTodoMutation.isPending ? '保存中...' : '创建 Todo'}
               </Button>
+              {createFormError ? <div className="text-sm text-[#d11f3e]">{createFormError}</div> : null}
               {createTodoMutation.error ? <div className="text-sm text-[#d11f3e]">{createTodoMutation.error.message}</div> : null}
             </div>
           </div>
@@ -710,6 +849,30 @@ export function DashboardPage() {
                         </div>
                         <div>
                           <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                            <BellRing className="h-4 w-4" />
+                            提醒设置
+                          </div>
+                          <select className="field-input field-select" value={editReminderType} onChange={(event) => setEditReminderType(event.target.value as TodoReminderType)}>
+                            {reminderOptions.map((item) => (
+                              <option key={item.value} value={item.value}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="mt-2 text-sm muted">{reminderOptions.find((item) => item.value === editReminderType)?.hint}</div>
+
+                          {editReminderType === 'custom_date' ? (
+                            <div className="mt-3">
+                              <input className="field-input" type="datetime-local" value={editReminderAt} onChange={(event) => setEditReminderAt(event.target.value)} />
+                            </div>
+                          ) : null}
+
+                          {(editReminderType === 'hour' || editReminderType === 'ten_minutes') && !editDueDate ? (
+                            <div className="mt-3 text-sm text-[#d11f3e]">预设提醒依赖截止时间，请先填写截止时间。</div>
+                          ) : null}
+                        </div>
+                        <div>
+                          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
                             <Tags className="h-4 w-4" />
                             编辑标签
                           </div>
@@ -787,6 +950,7 @@ export function DashboardPage() {
                             ))}
                           </div>
                         </div>
+                        {editFormError ? <div className="text-sm text-[#d11f3e]">{editFormError}</div> : null}
                         {updateTodoMutation.error ? <div className="text-sm text-[#d11f3e]">{updateTodoMutation.error.message}</div> : null}
                         {replaceTodoTagsMutation.error ? <div className="text-sm text-[#d11f3e]">{replaceTodoTagsMutation.error.message}</div> : null}
                         {replaceTodoSubtasksMutation.error ? <div className="text-sm text-[#d11f3e]">{replaceTodoSubtasksMutation.error.message}</div> : null}
@@ -805,6 +969,7 @@ export function DashboardPage() {
 
                         <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.12em] muted">
                           <span>Due {formatDate(todo.dueDate)}</span>
+                          <span>{getReminderSummary(todo.reminderType, todo.reminderAt)}</span>
                           <span>Created {formatDate(todo.createdAt)}</span>
                         </div>
                       </>
@@ -857,7 +1022,19 @@ export function DashboardPage() {
                         ) : (
                           <Button
                             tone="ghost"
-                            onClick={() => handleStartEdit(todo.id, todo.title, todo.description, todo.dueDate, todo.priority, todo.tags.map((tag) => tag.id), todo.subtasks)}
+                            onClick={() =>
+                              handleStartEdit(
+                                todo.id,
+                                todo.title,
+                                todo.description,
+                                todo.dueDate,
+                                todo.reminderType,
+                                todo.reminderAt,
+                                todo.priority,
+                                todo.tags.map((tag) => tag.id),
+                                todo.subtasks,
+                              )
+                            }
                           >
                             <PencilLine className="h-4 w-4" />
                             编辑

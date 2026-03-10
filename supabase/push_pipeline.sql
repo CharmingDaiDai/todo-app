@@ -6,12 +6,15 @@ create table if not exists public.todo_reminders (
   id uuid primary key default gen_random_uuid(),
   todo_id uuid not null references public.todos(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
-  reminder_type text not null check (reminder_type in ('hour', 'ten_minutes')),
+  reminder_type text not null check (reminder_type in ('hour', 'ten_minutes', 'custom_date')),
   due_date timestamptz not null,
   created_at timestamptz not null default timezone('utc', now()),
   sent_at timestamptz not null default timezone('utc', now()),
   unique (todo_id, reminder_type, due_date)
 );
+
+alter table public.todo_reminders drop constraint if exists todo_reminders_reminder_type_check;
+alter table public.todo_reminders add constraint todo_reminders_reminder_type_check check (reminder_type in ('hour', 'ten_minutes', 'custom_date'));
 
 create index if not exists idx_todo_reminders_user_id on public.todo_reminders (user_id, sent_at desc);
 create index if not exists idx_todo_reminders_todo_id on public.todo_reminders (todo_id, reminder_type);
@@ -21,13 +24,16 @@ create table if not exists public.push_delivery_logs (
   todo_id uuid references public.todos(id) on delete set null,
   user_id uuid references auth.users(id) on delete set null,
   push_subscription_id uuid references public.push_subs(id) on delete set null,
-  reminder_type text check (reminder_type in ('hour', 'ten_minutes')),
+  reminder_type text check (reminder_type in ('hour', 'ten_minutes', 'custom_date')),
   status text not null check (status in ('sent', 'failed', 'subscription_removed', 'skipped')),
   endpoint text,
   error_message text,
   response_status integer,
   created_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.push_delivery_logs drop constraint if exists push_delivery_logs_reminder_type_check;
+alter table public.push_delivery_logs add constraint push_delivery_logs_reminder_type_check check (reminder_type in ('hour', 'ten_minutes', 'custom_date'));
 
 create index if not exists idx_push_delivery_logs_user_id on public.push_delivery_logs (user_id, created_at desc);
 create index if not exists idx_push_delivery_logs_todo_id on public.push_delivery_logs (todo_id, created_at desc);
