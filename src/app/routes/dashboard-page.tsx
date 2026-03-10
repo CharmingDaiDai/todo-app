@@ -136,6 +136,82 @@ function getReminderSummary(reminderType: TodoReminderType, reminderAt: string |
   return reminderAt ? `自定义提醒 ${formatDate(reminderAt)}` : '自定义提醒'
 }
 
+type DashboardFiltersProps = {
+  statusFilter: 'all' | 'pending' | 'completed'
+  sortMode: 'manual' | 'due' | 'priority'
+  setStatusFilter: (value: 'all' | 'pending' | 'completed') => void
+  setSortMode: (value: 'manual' | 'due' | 'priority') => void
+  mode?: 'all' | 'desktop' | 'mobile'
+}
+
+function DashboardFilters({ statusFilter, sortMode, setStatusFilter, setSortMode, mode = 'all' }: DashboardFiltersProps) {
+  return (
+    <>
+      <div className={cn(mode === 'mobile' ? 'hidden' : 'hidden flex-wrap gap-2 lg:flex')}>
+        {(['all', 'pending', 'completed'] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setStatusFilter(value)}
+            className={`rounded-[var(--radius-md)] px-3 py-2 text-sm font-semibold ${
+              statusFilter === value ? 'bg-[var(--accent)] text-white' : 'panel-strong'
+            }`}
+          >
+            {value === 'all' ? '全部' : value === 'pending' ? '未完成' : '已完成'}
+          </button>
+        ))}
+
+        {(['manual', 'due', 'priority'] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setSortMode(value)}
+            className={`rounded-[var(--radius-md)] px-3 py-2 text-sm font-semibold ${
+              sortMode === value ? 'bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent)]' : 'panel-strong'
+            }`}
+          >
+            {value === 'manual' ? '默认排序' : value === 'due' ? '最近截止' : '最高优先级'}
+          </button>
+        ))}
+      </div>
+
+      <div className={cn(mode === 'desktop' ? 'hidden' : 'space-y-3 lg:hidden')}>
+        <div>
+          <div className="mb-2 text-[0.68rem] font-semibold uppercase tracking-[0.18em] muted">状态过滤</div>
+          <div className="mobile-filter-scroll">
+            {(['all', 'pending', 'completed'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setStatusFilter(value)}
+                className={cn('mobile-filter-chip', statusFilter === value && 'mobile-filter-chip-active')}
+              >
+                {value === 'all' ? '全部任务' : value === 'pending' ? '未完成' : '已完成'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-2 text-[0.68rem] font-semibold uppercase tracking-[0.18em] muted">排序方式</div>
+          <div className="mobile-filter-scroll">
+            {(['manual', 'due', 'priority'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setSortMode(value)}
+                className={cn('mobile-filter-chip', sortMode === value && 'mobile-filter-chip-active')}
+              >
+                {value === 'manual' ? '默认排序' : value === 'due' ? '最近截止' : '优先级'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 type SortableTodoCardProps = {
   id: string
   disabled: boolean
@@ -500,6 +576,15 @@ export function DashboardPage() {
       eyebrow="Workspace"
       title="Live Todo workspace"
       description="当前页已经直接连接 Supabase 数据层，可创建标签、任务和子任务，并支持完成状态切换与基础筛选排序。"
+      mobileToolbar={
+        <DashboardFilters
+          statusFilter={statusFilter}
+          sortMode={sortMode}
+          setStatusFilter={setStatusFilter}
+          setSortMode={setSortMode}
+          mode="mobile"
+        />
+      }
     >
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <ThemeStage />
@@ -740,33 +825,13 @@ export function DashboardPage() {
             <h3 className="mt-2 text-xl font-semibold">任务列表</h3>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {(['all', 'pending', 'completed'] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setStatusFilter(value)}
-                className={`rounded-[var(--radius-md)] px-3 py-2 text-sm font-semibold ${
-                  statusFilter === value ? 'bg-[var(--accent)] text-white' : 'panel-strong'
-                }`}
-              >
-                {value === 'all' ? '全部' : value === 'pending' ? '未完成' : '已完成'}
-              </button>
-            ))}
-
-            {(['manual', 'due', 'priority'] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setSortMode(value)}
-                className={`rounded-[var(--radius-md)] px-3 py-2 text-sm font-semibold ${
-                  sortMode === value ? 'bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent)]' : 'panel-strong'
-                }`}
-              >
-                {value === 'manual' ? '默认排序' : value === 'due' ? '最近截止' : '最高优先级'}
-              </button>
-            ))}
-          </div>
+          <DashboardFilters
+            statusFilter={statusFilter}
+            sortMode={sortMode}
+            setStatusFilter={setStatusFilter}
+            setSortMode={setSortMode}
+            mode="desktop"
+          />
         </div>
 
         {tags.length > 0 ? (

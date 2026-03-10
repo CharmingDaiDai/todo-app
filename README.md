@@ -1,69 +1,69 @@
-# React + TypeScript + Vite
+# Deep Todo App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+一个基于 React、Supabase 和 PWA 的沉浸式 Todo 应用。当前版本已经覆盖认证、任务管理、三套设计语言、拖拽排序、浏览器推送订阅、Supabase Edge Function 到期提醒，以及移动端底部 Tab 导航。
 
-Currently, two official plugins are available:
+## 当前实现
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- React 19 + TypeScript + Vite 7
+- React Router 7
+- TanStack Query 5 管理服务端状态
+- Zustand 管理主题与会话状态
+- Tailwind CSS 4 + 自定义 CSS Variables 主题系统
+- Framer Motion 页面与卡片动画
+- dnd-kit 任务拖拽排序
+- Supabase Auth / Postgres / RLS / Edge Functions
+- vite-plugin-pwa 自定义 service worker
 
-## Expanding the ESLint configuration
+## 与原始方案的差异
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- UI 组件当前采用自定义组件层，没有引入 Shadcn UI
+- 路由实际使用的是 React Router 7，而不是早期文档里的 v6 描述
+- 当前每个任务只支持一组提醒配置：不提醒、提前 1 小时、提前 10 分钟、自定义时间
+- 自动化测试暂未接入；当前以构建验证和手工回归为主
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 本地运行
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+在 app 目录下运行：
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+生产构建：
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run build
 ```
+
+## 环境变量
+
+前端需要以下变量：
+
+```bash
+VITE_SUPABASE_URL=
+VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_VAPID_PUBLIC_KEY=
+```
+
+为了兼容 Cloudflare Pages，也支持：
+
+```bash
+VITE_SUPABASE_ANON_KEY=
+```
+
+前端会优先读取 VITE_SUPABASE_PUBLISHABLE_KEY，如果不存在则回退到 VITE_SUPABASE_ANON_KEY。
+
+## Supabase SQL
+
+首次初始化或升级提醒能力后，需要执行：
+
+- supabase/schema.sql
+- supabase/push_pipeline.sql
+
+## 当前未完成范围
+
+- 描述字段的轻量 Markdown 支持
+- PWA 安装引导界面
+- 更完整的离线数据同步策略
+- 一个任务支持多个提醒时间

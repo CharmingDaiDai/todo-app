@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { House, Settings, Wifi, WifiOff } from 'lucide-react'
-import { useEffect, useState, type PropsWithChildren } from 'react'
+import { useEffect, useState, type PropsWithChildren, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { cn } from '../../lib/cn'
 import { ThemeSwitcher } from '../theme/theme-switcher'
@@ -9,9 +9,15 @@ type AppShellProps = PropsWithChildren<{
   eyebrow: string
   title: string
   description: string
+  mobileToolbar?: ReactNode
 }>
 
-export function AppShell({ eyebrow, title, description, children }: AppShellProps) {
+const navItems = [
+  { to: '/app', label: 'Dashboard', icon: House },
+  { to: '/settings', label: 'Settings', icon: Settings },
+] as const
+
+export function AppShell({ eyebrow, title, description, mobileToolbar, children }: AppShellProps) {
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine)
 
   useEffect(() => {
@@ -28,14 +34,14 @@ export function AppShell({ eyebrow, title, description, children }: AppShellProp
   }, [])
 
   return (
-    <div className="relative min-h-screen overflow-hidden px-4 py-5 md:px-6 md:py-6 xl:px-8">
+    <div className="relative min-h-screen overflow-hidden px-4 py-5 pb-28 md:px-6 md:py-6 md:pb-6 xl:px-8">
       <div className="pointer-events-none absolute inset-0 opacity-70">
         <div className="ambient-orb left-0 top-10 h-64 w-64 bg-[var(--accent)]" />
         <div className="ambient-orb bottom-0 right-0 h-72 w-72 bg-[var(--accent-strong)]" />
       </div>
 
       <div className="relative z-10 mx-auto grid max-w-7xl gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="panel flex flex-col gap-6 p-5 lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
+        <aside className="hidden panel flex-col gap-6 p-5 lg:sticky lg:top-6 lg:flex lg:h-[calc(100vh-3rem)]">
           <div className="space-y-3">
             <div className="text-xs uppercase tracking-[0.22em] muted">Deep Todo</div>
             <div>
@@ -45,14 +51,16 @@ export function AppShell({ eyebrow, title, description, children }: AppShellProp
           </div>
 
           <nav className="space-y-2">
-            <NavLink to="/app" className={({ isActive }) => cn('nav-link', isActive && 'nav-link-active')}>
-              <House className="h-4 w-4" />
-              <span>Dashboard</span>
-            </NavLink>
-            <NavLink to="/settings" className={({ isActive }) => cn('nav-link', isActive && 'nav-link-active')}>
-              <Settings className="h-4 w-4" />
-              <span>Settings</span>
-            </NavLink>
+            {navItems.map((item) => {
+              const Icon = item.icon
+
+              return (
+                <NavLink key={item.to} to={item.to} className={({ isActive }) => cn('nav-link', isActive && 'nav-link-active')}>
+                  <Icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </NavLink>
+              )
+            })}
           </nav>
 
           <div className="panel-strong flex items-center justify-between px-4 py-3">
@@ -74,6 +82,21 @@ export function AppShell({ eyebrow, title, description, children }: AppShellProp
           transition={{ duration: 0.45, ease: 'easeOut' }}
           className="space-y-6"
         >
+          <section className="panel mobile-shell-header overflow-hidden p-5 lg:hidden">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-[0.68rem] uppercase tracking-[0.22em] muted">Deep Todo</div>
+                <div className="mt-2 text-2xl font-semibold">Task cockpit</div>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-semibold">
+                {isOnline ? <Wifi className="h-3.5 w-3.5 text-[var(--accent)]" /> : <WifiOff className="h-3.5 w-3.5 text-[var(--accent)]" />}
+                {isOnline ? 'Online' : 'Offline'}
+              </div>
+            </div>
+
+            {mobileToolbar ? <div className="mt-4">{mobileToolbar}</div> : null}
+          </section>
+
           <section className="panel relative overflow-hidden p-6 md:p-8">
             <div className="absolute inset-x-0 top-0 h-px bg-[var(--border)]" />
             <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -92,6 +115,19 @@ export function AppShell({ eyebrow, title, description, children }: AppShellProp
           {children}
         </motion.main>
       </div>
+
+      <nav className="mobile-tabbar lg:hidden">
+        {navItems.map((item) => {
+          const Icon = item.icon
+
+          return (
+            <NavLink key={item.to} to={item.to} className={({ isActive }) => cn('mobile-tab', isActive && 'mobile-tab-active')}>
+              <Icon className="h-5 w-5" />
+              <span>{item.label}</span>
+            </NavLink>
+          )
+        })}
+      </nav>
     </div>
   )
 }
