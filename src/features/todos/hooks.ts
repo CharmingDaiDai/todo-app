@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createTag, createTodo, deleteTodo, listTags, listTodos, reorderTodo, toggleSubtaskCompletion, toggleTodoStatus, updateTodo } from './api'
+import { createTag, createTodo, deleteTag, deleteTodo, listTags, listTodos, reorderTodo, toggleSubtaskCompletion, toggleTodoStatus, updateTodo } from './api'
 import type { CreateTagInput, CreateTodoInput, ReorderTodoInput, Todo, UpdateTodoInput } from './types'
 
 export const todoKeys = {
@@ -44,6 +44,19 @@ export function useCreateTagMutation(userId: string | undefined) {
     onSuccess: async () => {
       if (!userId) return
       await queryClient.invalidateQueries({ queryKey: todoKeys.tags(userId) })
+    },
+  })
+}
+
+export function useDeleteTagMutation(userId: string | undefined) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) => deleteTag(id),
+    onSuccess: async () => {
+      if (!userId) return
+      await queryClient.invalidateQueries({ queryKey: todoKeys.tags(userId) })
+      await queryClient.invalidateQueries({ queryKey: todoKeys.list(userId) })
     },
   })
 }

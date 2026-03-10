@@ -10,13 +10,14 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import { motion } from 'framer-motion'
 import { CalendarClock, GripVertical, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
-import { useMemo, useState, type ReactNode, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type ReactNode, type FormEvent } from 'react'
 import { AppShell } from '../../components/layout/app-shell'
 import { ThemeStage } from '../../components/theme/theme-stage'
 import { Button } from '../../components/ui/button'
 import {
   useCreateTagMutation,
   useCreateTodoMutation,
+  useDeleteTagMutation,
   useDeleteTodoMutation,
   useReorderTodoMutation,
   useTagsQuery,
@@ -116,6 +117,7 @@ export function DashboardPage() {
   const tagsQuery = useTagsQuery(userId)
   const createTodoMutation = useCreateTodoMutation(userId)
   const createTagMutation = useCreateTagMutation(userId)
+  const deleteTagMutation = useDeleteTagMutation(userId)
   const toggleTodoStatusMutation = useToggleTodoStatusMutation(userId)
   const deleteTodoMutation = useDeleteTodoMutation(userId)
   const toggleSubtaskMutation = useToggleSubtaskMutation(userId)
@@ -143,6 +145,13 @@ export function DashboardPage() {
   const todos = todosQuery.data ?? []
   const tags = tagsQuery.data ?? []
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+
+  useEffect(() => {
+    const validTagIds = new Set(tags.map((tag) => tag.id))
+
+    setSelectedTagIds((current) => current.filter((tagId) => validTagIds.has(tagId)))
+    setActiveTagFilters((current) => current.filter((tagId) => validTagIds.has(tagId)))
+  }, [tags])
 
   const visibleTodos = useMemo(() => {
     const filtered = todos.filter((todo) => {
@@ -244,6 +253,14 @@ export function DashboardPage() {
 
       setTagName('')
       setTagColor(tagColors[(tagColors.indexOf(tagColor) + 1) % tagColors.length])
+    } catch {
+      return
+    }
+  }
+
+  const handleDeleteTag = async (tagId: string) => {
+    try {
+      await deleteTagMutation.mutateAsync(tagId)
     } catch {
       return
     }
@@ -518,9 +535,18 @@ export function DashboardPage() {
               <span key={tag.id} className="tag-chip">
                 <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
                 {tag.name}
+                <button
+                  type="button"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--text-primary)]"
+                  onClick={() => void handleDeleteTag(tag.id)}
+                  aria-label={`delete tag ${tag.name}`}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               </span>
             ))}
           </div>
+          {deleteTagMutation.error ? <div className="mt-3 text-sm text-[#d11f3e]">{deleteTagMutation.error.message}</div> : null}
         </section>
       </section>
 

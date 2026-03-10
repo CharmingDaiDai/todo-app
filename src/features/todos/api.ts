@@ -108,6 +108,14 @@ export async function createTag(input: CreateTagInput): Promise<Tag> {
   return mapTag(data satisfies TagRow)
 }
 
+export async function deleteTag(id: string): Promise<void> {
+  const { error } = await supabase.from('tags').delete().eq('id', id)
+
+  if (error) {
+    throw error
+  }
+}
+
 export async function listTodos(userId: string): Promise<Todo[]> {
   const { data, error } = await supabase
     .from('todos')
