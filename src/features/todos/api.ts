@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import type { CreateTagInput, CreateTodoInput, ReorderTodoInput, Subtask, Tag, Todo, UpdateTodoInput } from './types'
+import type { CreateTagInput, CreateTodoInput, ReorderTodoInput, ReplaceTodoTagsInput, Subtask, Tag, Todo, UpdateTodoInput } from './types'
 
 type TodoRow = {
   id: string
@@ -263,5 +263,28 @@ export async function reorderTodo(input: ReorderTodoInput): Promise<void> {
 
   if (error) {
     throw error
+  }
+}
+
+export async function replaceTodoTags(input: ReplaceTodoTagsInput): Promise<void> {
+  const { error: deleteError } = await supabase.from('todo_tags').delete().eq('todo_id', input.todoId)
+
+  if (deleteError) {
+    throw deleteError
+  }
+
+  if (input.tagIds.length === 0) {
+    return
+  }
+
+  const { error: insertError } = await supabase.from('todo_tags').insert(
+    input.tagIds.map((tagId) => ({
+      todo_id: input.todoId,
+      tag_id: tagId,
+    })),
+  )
+
+  if (insertError) {
+    throw insertError
   }
 }

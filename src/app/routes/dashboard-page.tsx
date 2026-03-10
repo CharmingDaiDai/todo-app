@@ -20,6 +20,7 @@ import {
   useDeleteTagMutation,
   useDeleteTodoMutation,
   useReorderTodoMutation,
+  useReplaceTodoTagsMutation,
   useTagsQuery,
   useTodosQuery,
   useToggleSubtaskMutation,
@@ -123,6 +124,7 @@ export function DashboardPage() {
   const toggleSubtaskMutation = useToggleSubtaskMutation(userId)
   const updateTodoMutation = useUpdateTodoMutation(userId)
   const reorderTodoMutation = useReorderTodoMutation(userId)
+  const replaceTodoTagsMutation = useReplaceTodoTagsMutation(userId)
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -141,6 +143,7 @@ export function DashboardPage() {
   const [editDescription, setEditDescription] = useState('')
   const [editDueDate, setEditDueDate] = useState('')
   const [editPriority, setEditPriority] = useState<TodoPriority>(2)
+  const [editSelectedTagIds, setEditSelectedTagIds] = useState<string[]>([])
 
   const todos = todosQuery.data ?? []
   const tags = tagsQuery.data ?? []
@@ -151,6 +154,7 @@ export function DashboardPage() {
 
     setSelectedTagIds((current) => current.filter((tagId) => validTagIds.has(tagId)))
     setActiveTagFilters((current) => current.filter((tagId) => validTagIds.has(tagId)))
+    setEditSelectedTagIds((current) => current.filter((tagId) => validTagIds.has(tagId)))
   }, [tags])
 
   const visibleTodos = useMemo(() => {
@@ -194,6 +198,12 @@ export function DashboardPage() {
 
   const handleToggleTagFilter = (tagId: string) => {
     setActiveTagFilters((current) =>
+      current.includes(tagId) ? current.filter((value) => value !== tagId) : [...current, tagId],
+    )
+  }
+
+  const handleToggleEditTag = (tagId: string) => {
+    setEditSelectedTagIds((current) =>
       current.includes(tagId) ? current.filter((value) => value !== tagId) : [...current, tagId],
     )
   }
@@ -272,12 +282,14 @@ export function DashboardPage() {
     currentDescription: string,
     currentDueDate: string | null,
     currentPriority: TodoPriority,
+    currentTagIds: string[],
   ) => {
     setEditingTodoId(todoId)
     setEditTitle(currentTitle)
     setEditDescription(currentDescription)
     setEditDueDate(toDateTimeLocalValue(currentDueDate))
     setEditPriority(currentPriority)
+    setEditSelectedTagIds(currentTagIds)
   }
 
   const handleCancelEdit = () => {
@@ -286,6 +298,7 @@ export function DashboardPage() {
     setEditDescription('')
     setEditDueDate('')
     setEditPriority(2)
+    setEditSelectedTagIds([])
   }
 
   const handleUpdateTodo = async (todoId: string) => {
@@ -300,6 +313,11 @@ export function DashboardPage() {
         description: editDescription.trim(),
         dueDate: editDueDate ? new Date(editDueDate).toISOString() : null,
         priority: editPriority,
+      })
+
+      await replaceTodoTagsMutation.mutateAsync({
+        todoId,
+        tagIds: editSelectedTagIds,
       })
 
       handleCancelEdit()
@@ -664,7 +682,32 @@ export function DashboardPage() {
                             ))}
                           </select>
                         </div>
+                        <div>
+                          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                            <Tags className="h-4 w-4" />
+                            编辑标签
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {tags.length === 0 ? <div className="text-sm muted">当前没有可用标签。</div> : null}
+                            {tags.map((tag) => {
+                              const selected = editSelectedTagIds.includes(tag.id)
+
+                              return (
+                                <button
+                                  key={tag.id}
+                                  type="button"
+                                  onClick={() => handleToggleEditTag(tag.id)}
+                                  className={`tag-chip ${selected ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                                >
+                                  <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
+                                  {tag.name}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
                         {updateTodoMutation.error ? <div className="text-sm text-[#d11f3e]">{updateTodoMutation.error.message}</div> : null}
+                        {replaceTodoTagsMutation.error ? <div className="text-sm text-[#d11f3e]">{replaceTodoTagsMutation.error.message}</div> : null}
                       </div>
                     ) : (
                       <>
@@ -732,7 +775,7 @@ export function DashboardPage() {
                         ) : (
                           <Button
                             tone="ghost"
-                            onClick={() => handleStartEdit(todo.id, todo.title, todo.description, todo.dueDate, todo.priority)}
+                            onClick={() => handleStartEdit(todo.id, todo.title, todo.description, todo.dueDate, todo.priority, todo.tags.map((tag) => tag.id))}
                           >
                             <PencilLine className="h-4 w-4" />
                             编辑

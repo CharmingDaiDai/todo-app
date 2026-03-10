@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createTag, createTodo, deleteTag, deleteTodo, listTags, listTodos, reorderTodo, toggleSubtaskCompletion, toggleTodoStatus, updateTodo } from './api'
-import type { CreateTagInput, CreateTodoInput, ReorderTodoInput, Todo, UpdateTodoInput } from './types'
+import { createTag, createTodo, deleteTag, deleteTodo, listTags, listTodos, reorderTodo, replaceTodoTags, toggleSubtaskCompletion, toggleTodoStatus, updateTodo } from './api'
+import type { CreateTagInput, CreateTodoInput, ReorderTodoInput, ReplaceTodoTagsInput, Todo, UpdateTodoInput } from './types'
 
 export const todoKeys = {
   all: ['todos'] as const,
@@ -138,6 +138,18 @@ export function useReorderTodoMutation(userId: string | undefined) {
       queryClient.setQueryData(todoKeys.list(userId), context.previousTodos)
     },
     onSettled: async () => {
+      if (!userId) return
+      await queryClient.invalidateQueries({ queryKey: todoKeys.list(userId) })
+    },
+  })
+}
+
+export function useReplaceTodoTagsMutation(userId: string | undefined) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: ReplaceTodoTagsInput) => replaceTodoTags(input),
+    onSuccess: async () => {
       if (!userId) return
       await queryClient.invalidateQueries({ queryKey: todoKeys.list(userId) })
     },

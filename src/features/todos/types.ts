@@ -64,3 +64,8 @@ export type ReorderTodoInput = {
   id: string
   orderIndex: number
 }
+
+export type ReplaceTodoTagsInput = {
+  todoId: string
+  tagIds: string[]
+}
