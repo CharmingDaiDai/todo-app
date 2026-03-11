@@ -34,6 +34,14 @@ function sortTodos(todos: Todo[]) {
   return todos.slice().sort((left, right) => left.orderIndex - right.orderIndex)
 }
 
+function deriveTodoStatusFromSubtasks(subtasks: Todo['subtasks'], fallbackStatus: Todo['status']) {
+  if (subtasks.length === 0) {
+    return fallbackStatus
+  }
+
+  return subtasks.every((subtask) => subtask.isCompleted) ? 'completed' : 'pending'
+}
+
 function updateTodoList(queryClient: ReturnType<typeof useQueryClient>, userId: string, updater: (current: Todo[]) => Todo[]) {
   queryClient.setQueryData<Todo[]>(todoKeys.list(userId), (current) => (current ? updater(current) : current))
 }
@@ -217,7 +225,19 @@ export function useToggleTodoStatusMutation(userId: string | undefined) {
       const previousTodos = queryClient.getQueryData<Todo[]>(todoKeys.list(userId))
 
       updateTodoList(queryClient, userId, (current) =>
-        current.map((todo) => (todo.id === id ? { ...todo, status, updatedAt: new Date().toISOString() } : todo)),
+        current.map((todo) =>
+          todo.id === id
+            ? {
+                ...todo,
+                status,
+                subtasks: todo.subtasks.map((subtask) => ({
+                  ...subtask,
+                  isCompleted: status === 'completed',
+                })),
+                updatedAt: new Date().toISOString(),
+              }
+            : todo,
+        ),
       )
 
       return { previousTodos }
@@ -328,12 +348,28 @@ export function useToggleSubtaskMutation(userId: string | undefined) {
       const previousTodos = queryClient.getQueryData<Todo[]>(todoKeys.list(userId))
 
       updateTodoList(queryClient, userId, (current) =>
-        current.map((todo) => ({
-          ...todo,
-          subtasks: todo.subtasks.map((subtask) =>
+        current.map((todo) => {
+          const nextSubtasks = todo.subtasks.map((subtask) =>
             subtask.id === id ? { ...subtask, isCompleted } : subtask,
-          ),
-        })),
+          )
+
+          if (nextSubtasks === todo.subtasks) {
+            return todo
+          }
+
+          const hasUpdatedSubtask = nextSubtasks.some((subtask, index) => subtask !== todo.subtasks[index])
+
+          if (!hasUpdatedSubtask) {
+            return todo
+          }
+
+          return {
+            ...todo,
+            subtasks: nextSubtasks,
+            status: deriveTodoStatusFromSubtasks(nextSubtasks, todo.status),
+            updatedAt: new Date().toISOString(),
+          }
+        }),
       )
 
       return { previousTodos }
@@ -442,17 +478,23 @@ export function useReplaceTodoSubtasksMutation(userId: string | undefined) {
       updateTodoList(queryClient, userId, (current) =>
         current.map((todo) =>
           todo.id === input.todoId
-            ? {
-                ...todo,
-                subtasks: input.subtasks.map((subtask, index) => ({
+            ? (() => {
+                const nextSubtasks = input.subtasks.map((subtask, index) => ({
                   id: todo.subtasks[index]?.id ?? createTempId('subtask'),
                   todoId: input.todoId,
                   title: subtask.title,
                   isCompleted: subtask.isCompleted,
                   orderIndex: index,
                   createdAt: todo.subtasks[index]?.createdAt ?? now,
-                })),
-              }
+                }))
+
+                return {
+                  ...todo,
+                  subtasks: nextSubtasks,
+                  status: deriveTodoStatusFromSubtasks(nextSubtasks, todo.status),
+                  updatedAt: now,
+                }
+              })()
             : todo,
         ),
       )

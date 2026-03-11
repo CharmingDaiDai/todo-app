@@ -1,6 +1,10 @@
 import { supabase } from '../../lib/supabase'
 import type { CreateTagInput, CreateTodoInput, ReorderTodoInput, ReplaceTodoSubtasksInput, ReplaceTodoTagsInput, Subtask, Tag, Todo, UpdateTodoInput } from './types'
 
+function deriveTodoStatusFromSubtasks(subtasks: Array<{ isCompleted: boolean }>): 'pending' | 'completed' {
+  return subtasks.every((subtask) => subtask.isCompleted) ? 'completed' : 'pending'
+}
+
 type TodoRow = {
   id: string
   user_id: string
@@ -249,7 +253,20 @@ export async function updateTodo(input: UpdateTodoInput): Promise<void> {
 }
 
 export async function toggleTodoStatus(id: string, status: 'pending' | 'completed'): Promise<void> {
-  return updateTodo({ id, status })
+  const isCompleted = status === 'completed'
+
+  const [{ error: todoError }, { error: subtaskError }] = await Promise.all([
+    supabase.from('todos').update({ status }).eq('id', id),
+    supabase.from('subtasks').update({ is_completed: isCompleted }).eq('todo_id', id),
+  ])
+
+  if (todoError) {
+    throw todoError
+  }
+
+  if (subtaskError) {
+    throw subtaskError
+  }
 }
 
 export async function deleteTodo(id: string): Promise<void> {
@@ -261,11 +278,31 @@ export async function deleteTodo(id: string): Promise<void> {
 }
 
 export async function toggleSubtaskCompletion(id: string, isCompleted: boolean): Promise<void> {
-  const { error } = await supabase.from('subtasks').update({ is_completed: isCompleted }).eq('id', id)
+  const { data: updatedSubtask, error } = await supabase
+    .from('subtasks')
+    .update({ is_completed: isCompleted })
+    .eq('id', id)
+    .select('todo_id')
+    .single()
 
   if (error) {
     throw error
   }
+
+  const { data: siblingSubtasks, error: siblingError } = await supabase
+    .from('subtasks')
+    .select('is_completed')
+    .eq('todo_id', updatedSubtask.todo_id)
+
+  if (siblingError) {
+    throw siblingError
+  }
+
+  const status = deriveTodoStatusFromSubtasks(
+    (siblingSubtasks ?? []).map((subtask) => ({ isCompleted: subtask.is_completed })),
+  )
+
+  await updateTodo({ id: updatedSubtask.todo_id, status })
 }
 
 export async function reorderTodo(input: ReorderTodoInput): Promise<void> {
@@ -322,4 +359,9 @@ export async function replaceTodoSubtasks(input: ReplaceTodoSubtasksInput): Prom
   if (insertError) {
     throw insertError
   }
+
+  await updateTodo({
+    id: input.todoId,
+    status: deriveTodoStatusFromSubtasks(input.subtasks),
+  })
 }
