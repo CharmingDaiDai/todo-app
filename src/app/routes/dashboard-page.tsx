@@ -1,3 +1,4 @@
+import { useMutationState } from '@tanstack/react-query'
 import {
   DndContext,
   PointerSensor,
@@ -9,13 +10,14 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { AnimatePresence, motion } from 'framer-motion'
-import { BellRing, CalendarDays, ChevronDown, ChevronUp, GripVertical, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
+import { BellRing, CalendarDays, ChevronDown, ChevronUp, GripVertical, ListChecks, LoaderCircle, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode, type FormEvent } from 'react'
 import { AppShell } from '../../components/layout/app-shell'
 import { Button } from '../../components/ui/button'
 import { DateTimeField } from '../../components/ui/date-time-picker'
 import { MarkdownPreview } from '../../components/ui/markdown-preview'
 import {
+  todoMutationKeys,
   useCreateTodoMutation,
   useDeleteTodoMutation,
   useReorderTodoMutation,
@@ -288,9 +290,10 @@ type SortableTodoCardProps = {
   content: ReactNode
   actions: ReactNode
   isActive?: boolean
+  isSyncing?: boolean
 }
 
-function SortableTodoCard({ id, disabled, content, actions, isActive = false }: SortableTodoCardProps) {
+function SortableTodoCard({ id, disabled, content, actions, isActive = false, isSyncing = false }: SortableTodoCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
     disabled,
@@ -303,7 +306,7 @@ function SortableTodoCard({ id, disabled, content, actions, isActive = false }: 
         transform: CSS.Transform.toString(transform),
         transition,
       }}
-      className={cn('group relative panel-strong p-5', isDragging && 'opacity-80', isActive && 'border-[var(--accent)] ring-2 ring-[var(--accent-soft)]')}
+      className={cn('group relative panel-strong p-5', isDragging && 'opacity-80', isActive && 'border-[var(--accent)] ring-2 ring-[var(--accent-soft)]', isSyncing && 'surface-syncing')}
     >
       <div className="flex flex-col gap-4 lg:block">
         <div className="flex min-w-0 gap-4 lg:pr-40">{content}</div>
@@ -588,7 +591,7 @@ function CreateTodoComposer({
                 取消
               </Button>
               <Button type="submit" disabled={isSaving}>
-                <Plus className="h-4 w-4" />
+                {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 {isSaving ? '保存中...' : '创建 Todo'}
               </Button>
             </div>
@@ -836,7 +839,7 @@ function EditTodoDrawer({
               取消
             </Button>
             <Button tone="secondary" onClick={onSave} disabled={isSaving}>
-              <Save className="h-4 w-4" />
+              {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {isSaving ? '保存中...' : '保存更改'}
             </Button>
           </div>
@@ -859,6 +862,34 @@ export function DashboardPage() {
   const reorderTodoMutation = useReorderTodoMutation(userId)
   const replaceTodoTagsMutation = useReplaceTodoTagsMutation(userId)
   const replaceTodoSubtasksMutation = useReplaceTodoSubtasksMutation(userId)
+  const pendingToggleTodoIds = useMutationState<{ id: string; status: 'pending' | 'completed' } | undefined>({
+    filters: { mutationKey: todoMutationKeys.toggleTodoStatus, status: 'pending' },
+    select: (mutation) => mutation.state.variables as { id: string; status: 'pending' | 'completed' } | undefined,
+  })
+  const pendingDeleteTodoIds = useMutationState<string | undefined>({
+    filters: { mutationKey: todoMutationKeys.deleteTodo, status: 'pending' },
+    select: (mutation) => mutation.state.variables as string | undefined,
+  })
+  const pendingSubtaskIds = useMutationState<{ id: string; isCompleted: boolean } | undefined>({
+    filters: { mutationKey: todoMutationKeys.toggleSubtask, status: 'pending' },
+    select: (mutation) => mutation.state.variables as { id: string; isCompleted: boolean } | undefined,
+  })
+  const pendingUpdateTodoIds = useMutationState<{ id: string } | undefined>({
+    filters: { mutationKey: todoMutationKeys.updateTodo, status: 'pending' },
+    select: (mutation) => mutation.state.variables as { id: string } | undefined,
+  })
+  const pendingReorderTodoIds = useMutationState<{ id: string; orderIndex: number } | undefined>({
+    filters: { mutationKey: todoMutationKeys.reorderTodo, status: 'pending' },
+    select: (mutation) => mutation.state.variables as { id: string; orderIndex: number } | undefined,
+  })
+  const pendingReplaceTagTodoIds = useMutationState<{ todoId: string; tagIds: string[] } | undefined>({
+    filters: { mutationKey: todoMutationKeys.replaceTodoTags, status: 'pending' },
+    select: (mutation) => mutation.state.variables as { todoId: string; tagIds: string[] } | undefined,
+  })
+  const pendingReplaceSubtaskTodoIds = useMutationState<{ todoId: string; subtasks: Array<{ title: string; isCompleted: boolean }> } | undefined>({
+    filters: { mutationKey: todoMutationKeys.replaceTodoSubtasks, status: 'pending' },
+    select: (mutation) => mutation.state.variables as { todoId: string; subtasks: Array<{ title: string; isCompleted: boolean }> } | undefined,
+  })
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -894,6 +925,22 @@ export function DashboardPage() {
   const todos = todosQuery.data ?? []
   const tags = tagsQuery.data ?? []
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  const syncingTodoIds = useMemo(
+    () =>
+      new Set([
+        ...pendingToggleTodoIds.map((item) => item?.id),
+        ...pendingDeleteTodoIds,
+        ...pendingUpdateTodoIds.map((item) => item?.id),
+        ...pendingReorderTodoIds.map((item) => item?.id),
+        ...pendingReplaceTagTodoIds.map((item) => item?.todoId),
+        ...pendingReplaceSubtaskTodoIds.map((item) => item?.todoId),
+      ].filter((id): id is string => Boolean(id))),
+    [pendingDeleteTodoIds, pendingReorderTodoIds, pendingReplaceSubtaskTodoIds, pendingReplaceTagTodoIds, pendingToggleTodoIds, pendingUpdateTodoIds],
+  )
+  const syncingSubtaskIds = useMemo(
+    () => new Set(pendingSubtaskIds.map((item) => item?.id).filter((id): id is string => Boolean(id))),
+    [pendingSubtaskIds],
+  )
 
   useEffect(() => {
     const validTagIds = new Set(tags.map((tag) => tag.id))
@@ -934,7 +981,7 @@ export function DashboardPage() {
     const diff = new Date(todo.dueDate).getTime() - Date.now()
     return diff > 0 && diff <= 1000 * 60 * 60 * 24
   }).length
-  const canDragSort = sortMode === 'manual' && statusFilter === 'all' && activeTagFilters.length === 0 && editingTodoId === null
+  const canDragSort = sortMode === 'manual' && statusFilter === 'all' && activeTagFilters.length === 0 && editingTodoId === null && !reorderTodoMutation.isPending
   const editingTodo = todos.find((todo) => todo.id === editingTodoId) ?? null
 
   useEffect(() => {
@@ -1327,12 +1374,14 @@ export function DashboardPage() {
                       id={todo.id}
                       disabled={!canDragSort}
                       isActive={editingTodoId === todo.id}
+                      isSyncing={syncingTodoIds.has(todo.id)}
                       content={
                         <>
                           <input
-                            className="field-checkbox mt-1 h-5 w-5"
+                            className={cn('field-checkbox mt-1 h-5 w-5', syncingTodoIds.has(todo.id) && 'field-checkbox-syncing')}
                             type="checkbox"
                             checked={todo.status === 'completed'}
+                            disabled={syncingTodoIds.has(todo.id)}
                             onChange={(event) =>
                               toggleTodoStatusMutation.mutate({
                                 id: todo.id,
@@ -1348,6 +1397,7 @@ export function DashboardPage() {
                                 <span className="tag-chip-dot" style={{ backgroundColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }} />
                                 {priorityOptions.find((item) => item.value === todo.priority)?.label}
                               </span>
+                              {syncingTodoIds.has(todo.id) ? <span className="sync-pill"><span className="sync-pill-dot" /> 同步中</span> : null}
                             </div>
 
                             {getDescriptionSnippet(todo.description) ? <p className="mt-3 text-sm muted">{getDescriptionSnippet(todo.description)}</p> : null}
@@ -1399,13 +1449,13 @@ export function DashboardPage() {
                                             key={subtask.id}
                                             initial={{ opacity: 0, y: 6 }}
                                             animate={{ opacity: 1, y: 0 }}
-                                            className="panel flex items-center gap-3 px-4 py-3 text-sm"
+                                            className={cn('panel flex items-center gap-3 px-4 py-3 text-sm transition-opacity', syncingSubtaskIds.has(subtask.id) && 'surface-syncing opacity-80')}
                                           >
                                             <input
-                                              className="field-checkbox h-4 w-4"
+                                              className={cn('field-checkbox h-4 w-4', syncingSubtaskIds.has(subtask.id) && 'field-checkbox-syncing')}
                                               type="checkbox"
                                               checked={subtask.isCompleted}
-                                              disabled={toggleSubtaskMutation.isPending}
+                                              disabled={syncingSubtaskIds.has(subtask.id)}
                                               onChange={(event) =>
                                                 toggleSubtaskMutation.mutate({
                                                   id: subtask.id,
@@ -1430,6 +1480,7 @@ export function DashboardPage() {
                           <Button
                             tone={editingTodoId === todo.id ? 'secondary' : 'ghost'}
                             className="lg:h-10 lg:min-h-0 lg:w-10 lg:rounded-full lg:px-0 lg:py-0"
+                            disabled={syncingTodoIds.has(todo.id)}
                             onClick={() =>
                               handleStartEdit(
                                 todo.id,
@@ -1444,16 +1495,16 @@ export function DashboardPage() {
                               )
                             }
                           >
-                            <PencilLine className="h-4 w-4" />
+                            {syncingTodoIds.has(todo.id) ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <PencilLine className="h-4 w-4" />}
                             <span className="lg:hidden">{editingTodoId === todo.id ? '正在编辑' : '编辑'}</span>
                           </Button>
                           <Button
                             tone="ghost"
                             className="lg:h-10 lg:min-h-0 lg:w-10 lg:rounded-full lg:px-0 lg:py-0"
                             onClick={() => deleteTodoMutation.mutate(todo.id)}
-                            disabled={deleteTodoMutation.isPending}
+                            disabled={syncingTodoIds.has(todo.id)}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            {syncingTodoIds.has(todo.id) ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                             <span className="lg:hidden">删除</span>
                           </Button>
                         </>

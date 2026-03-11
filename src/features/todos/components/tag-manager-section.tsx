@@ -1,7 +1,9 @@
-import { useState, type FormEvent } from 'react'
-import { Tags, X } from 'lucide-react'
+import { useMemo, useState, type FormEvent } from 'react'
+import { useMutationState } from '@tanstack/react-query'
+import { LoaderCircle, Tags, X } from 'lucide-react'
+import { cn } from '../../../lib/cn'
 import { Button } from '../../../components/ui/button'
-import { useCreateTagMutation, useDeleteTagMutation, useTagsQuery } from '../hooks'
+import { todoMutationKeys, useCreateTagMutation, useDeleteTagMutation, useTagsQuery } from '../hooks'
 
 const tagColors = ['#1258d6', '#ff4d00', '#2f8f58', '#8a43ff', '#d11f3e', '#f59e0b']
 
@@ -16,8 +18,16 @@ export function TagManagerSection({ userId }: TagManagerSectionProps) {
   const [showTagManager, setShowTagManager] = useState(false)
   const [tagName, setTagName] = useState('')
   const [tagColor, setTagColor] = useState(tagColors[0])
+  const pendingDeleteTagIds = useMutationState<string | undefined>({
+    filters: { mutationKey: todoMutationKeys.deleteTag, status: 'pending' },
+    select: (mutation) => mutation.state.variables as string | undefined,
+  })
 
   const tags = tagsQuery.data ?? []
+  const deletingTagIds = useMemo(
+    () => new Set(pendingDeleteTagIds.filter((tagId): tagId is string => Boolean(tagId))),
+    [pendingDeleteTagIds],
+  )
 
   const handleCreateTag = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -95,6 +105,7 @@ export function TagManagerSection({ userId }: TagManagerSectionProps) {
           </div>
 
           <Button type="submit" tone="secondary" disabled={createTagMutation.isPending}>
+            {createTagMutation.isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
             {createTagMutation.isPending ? '创建中...' : '创建标签'}
           </Button>
           {createTagMutation.error ? <div className="text-sm text-[#d11f3e]">{createTagMutation.error.message}</div> : null}
@@ -103,16 +114,17 @@ export function TagManagerSection({ userId }: TagManagerSectionProps) {
 
       <div className="mt-6 flex flex-wrap gap-2">
         {tags.map((tag) => (
-          <span key={tag.id} className="tag-chip">
+          <span key={tag.id} className={cn('tag-chip', deletingTagIds.has(tag.id) && 'tag-chip-syncing')}>
             <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
             {tag.name}
             <button
               type="button"
               className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--text-primary)]"
               onClick={() => void handleDeleteTag(tag.id)}
+              disabled={deletingTagIds.has(tag.id)}
               aria-label={`delete tag ${tag.name}`}
             >
-              <X className="h-3.5 w-3.5" />
+              {deletingTagIds.has(tag.id) ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
             </button>
           </span>
         ))}

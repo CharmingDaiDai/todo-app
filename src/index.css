@@ -832,6 +832,74 @@ textarea {
   font-weight: 700;
 }
 
+.tag-chip-syncing {
+  opacity: 0.72;
+}
+
+.surface-syncing {
+  position: relative;
+  overflow: hidden;
+}
+
+.surface-syncing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.2) 42%, transparent 84%);
+  transform: translateX(-100%);
+  animation: sync-shimmer 1.15s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.field-checkbox-syncing {
+  animation: sync-pulse 0.95s ease-in-out infinite;
+}
+
+.sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--accent) 12%, white);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.sync-pill-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: sync-pulse 0.95s ease-in-out infinite;
+}
+
+@keyframes sync-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.88);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sync-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 .tag-chip-dot {
   width: 0.65rem;
   height: 0.65rem;
