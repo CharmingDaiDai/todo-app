@@ -8,8 +8,8 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { motion } from 'framer-motion'
-import { BellRing, ChevronDown, ChevronUp, GripVertical, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { BellRing, CalendarDays, ChevronDown, ChevronUp, GripVertical, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode, type FormEvent } from 'react'
 import { AppShell } from '../../components/layout/app-shell'
 import { Button } from '../../components/ui/button'
@@ -21,12 +21,13 @@ import {
   useReplaceTodoSubtasksMutation,
   useReplaceTodoTagsMutation,
   useTagsQuery,
+  useToggleSubtaskMutation,
   useTodosQuery,
   useToggleTodoStatusMutation,
   useUpdateTodoMutation,
 } from '../../features/todos/hooks'
 import { calculateNewOrderIndex } from '../../features/todos/order'
-import type { Subtask, TodoPriority, TodoReminderType } from '../../features/todos/types'
+import type { Subtask, Tag, TodoPriority, TodoReminderType } from '../../features/todos/types'
 import { cn } from '../../lib/cn'
 import { useAuthStore } from '../../store/auth-store'
 
@@ -126,6 +127,82 @@ function getDescriptionSnippet(value: string) {
   }
 
   return compact.length > 140 ? `${compact.slice(0, 140)}...` : compact
+}
+
+function PriorityPicker({ value, onChange }: { value: TodoPriority; onChange: (value: TodoPriority) => void }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-3">
+      {priorityOptions.map((item) => {
+        const active = item.value === value
+
+        return (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => onChange(item.value)}
+            className={cn(
+              'flex items-center gap-3 rounded-[var(--radius-md)] border px-4 py-3 text-left transition duration-200',
+              active ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--text-primary)]' : 'border-[var(--border)] bg-[var(--surface-strong)] hover:-translate-y-[1px] hover:border-[var(--accent)]/45',
+            )}
+          >
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.tone }} />
+            <span className="text-sm font-semibold">{item.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function ReminderPicker({ value, onChange }: { value: TodoReminderType; onChange: (value: TodoReminderType) => void }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {reminderOptions.map((item) => {
+        const active = item.value === value
+
+        return (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => onChange(item.value)}
+            className={cn(
+              'rounded-[var(--radius-md)] border px-4 py-3 text-left transition duration-200',
+              active ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--text-primary)]' : 'border-[var(--border)] bg-[var(--surface-strong)] hover:-translate-y-[1px] hover:border-[var(--accent)]/45',
+            )}
+          >
+            <div className="text-sm font-semibold">{item.label}</div>
+            <div className="mt-1 text-xs muted">{item.hint}</div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function TagPicker({ tags, selectedTagIds, onToggle }: { tags: Tag[]; selectedTagIds: string[]; onToggle: (tagId: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {tags.length === 0 ? <div className="text-sm muted">当前还没有标签，可在设置页中创建。</div> : null}
+      {tags.map((tag) => {
+        const selected = selectedTagIds.includes(tag.id)
+
+        return (
+          <button
+            key={tag.id}
+            type="button"
+            onClick={() => onToggle(tag.id)}
+            className={cn(
+              'tag-chip transition duration-200 hover:-translate-y-[1px]',
+              selected && 'ring-2 ring-[var(--accent)] bg-[var(--accent-soft)]',
+            )}
+          >
+            <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
+            {tag.name}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 type DashboardFiltersProps = {
@@ -249,6 +326,265 @@ function SortableTodoCard({ id, disabled, content, actions, isActive = false }: 
         </div>
       </div>
     </article>
+  )
+}
+
+type CreateTodoComposerProps = {
+  isOpen: boolean
+  title: string
+  setTitle: (value: string) => void
+  dueDate: string
+  setDueDate: (value: string) => void
+  priority: TodoPriority
+  setPriority: (value: TodoPriority) => void
+  description: string
+  setDescription: (value: string) => void
+  descriptionMode: 'write' | 'preview'
+  setDescriptionMode: (value: 'write' | 'preview') => void
+  reminderType: TodoReminderType
+  setReminderType: (value: TodoReminderType) => void
+  reminderAt: string
+  setReminderAt: (value: string) => void
+  tags: Tag[]
+  selectedTagIds: string[]
+  handleToggleTag: (tagId: string) => void
+  draftSubtask: string
+  setDraftSubtask: (value: string) => void
+  subtasks: string[]
+  handleAddSubtask: () => void
+  removeSubtask: (index: number) => void
+  showCreateDetails: boolean
+  setShowCreateDetails: React.Dispatch<React.SetStateAction<boolean>>
+  createFormError: string | null
+  createMutationError: string | null
+  isSaving: boolean
+  onClose: () => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+}
+
+function CreateTodoComposer({
+  isOpen,
+  title,
+  setTitle,
+  dueDate,
+  setDueDate,
+  priority,
+  setPriority,
+  description,
+  setDescription,
+  descriptionMode,
+  setDescriptionMode,
+  reminderType,
+  setReminderType,
+  reminderAt,
+  setReminderAt,
+  tags,
+  selectedTagIds,
+  handleToggleTag,
+  draftSubtask,
+  setDraftSubtask,
+  subtasks,
+  handleAddSubtask,
+  removeSubtask,
+  showCreateDetails,
+  setShowCreateDetails,
+  createFormError,
+  createMutationError,
+  isSaving,
+  onClose,
+  onSubmit,
+}: CreateTodoComposerProps) {
+  if (!isOpen) {
+    return null
+  }
+
+  return (
+    <>
+      <motion.button
+        type="button"
+        aria-label="close create todo composer"
+        className="fixed inset-0 z-40 bg-black/28 backdrop-blur-[3px]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+
+      <motion.div
+        className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:p-6 md:items-center"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <motion.form
+          initial={{ opacity: 0, y: 28, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 18, scale: 0.98 }}
+          transition={{ duration: 0.24, ease: 'easeOut' }}
+          onSubmit={onSubmit}
+          className="panel flex max-h-[calc(100vh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden"
+        >
+          <div className="border-b border-[var(--border)] bg-[var(--surface-strong)] px-5 py-5 md:px-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.18em] muted">Create todo</div>
+                <h3 className="mt-2 text-2xl font-semibold">添加任务</h3>
+                <p className="mt-2 text-sm muted">用一个轻量浮层完成录入，避免主界面长期被大表单占据。</p>
+              </div>
+              <Button tone="ghost" onClick={onClose} aria-label="关闭新增任务浮层">
+                <X className="h-4 w-4" />
+                关闭
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-5 py-5 md:px-6">
+            <div className="space-y-5">
+              <div>
+                <label className="mb-2 block text-sm font-semibold">标题</label>
+                <input className="field-input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：完成 Supabase schema 上线" required />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+                <div className="panel-strong px-4 py-4">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                    <CalendarDays className="h-4 w-4" />
+                    截止时间
+                  </div>
+                  <input className="field-input" type="datetime-local" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+                </div>
+
+                <div className="panel-strong px-4 py-4">
+                  <div className="mb-3 text-sm font-semibold">优先级</div>
+                  <PriorityPicker value={priority} onChange={setPriority} />
+                </div>
+              </div>
+
+              <section className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-strong)]/72">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateDetails((current) => !current)}
+                  className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left"
+                >
+                  <div>
+                    <div className="text-sm font-semibold">高级选项</div>
+                    <div className="mt-1 text-xs muted">
+                      描述、提醒、标签和子任务
+                      {selectedTagIds.length > 0 ? ` · ${selectedTagIds.length} 个标签` : ''}
+                      {subtasks.length > 0 ? ` · ${subtasks.length} 个子任务` : ''}
+                      {reminderType !== 'none' ? ' · 已设置提醒' : ''}
+                    </div>
+                  </div>
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]">
+                    {showCreateDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </span>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {showCreateDetails ? (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.22, ease: 'easeOut' }}
+                      className="overflow-hidden"
+                    >
+                      <div className="grid gap-5 border-t border-[var(--border)] px-4 py-4 md:grid-cols-2">
+                        <div className="md:col-span-2">
+                          <label className="mb-2 block text-sm font-semibold">描述</label>
+                          <div className="mb-2 flex flex-wrap gap-2">
+                            {(['write', 'preview'] as const).map((mode) => (
+                              <button
+                                key={mode}
+                                type="button"
+                                onClick={() => setDescriptionMode(mode)}
+                                className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em]', descriptionMode === mode ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--surface-strong)] muted')}
+                              >
+                                {mode === 'write' ? '编辑' : '预览'}
+                              </button>
+                            ))}
+                          </div>
+                          {descriptionMode === 'write' ? (
+                            <textarea className="field-input field-textarea" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="补充说明、上下文和期望结果，支持标题、列表、链接和粗体。" />
+                          ) : (
+                            <div className="field-input min-h-[112px]">
+                              <MarkdownPreview content={description} emptyState="在左侧编辑后，这里会显示 Markdown 预览。" />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="md:col-span-2 panel-strong px-4 py-4">
+                          <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                            <BellRing className="h-4 w-4" />
+                            提醒
+                          </div>
+                          <ReminderPicker value={reminderType} onChange={setReminderType} />
+
+                          {reminderType === 'custom_date' ? (
+                            <div className="mt-4">
+                              <label className="mb-2 block text-sm font-semibold">提醒时间</label>
+                              <input className="field-input" type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} />
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="md:col-span-2 panel-strong px-4 py-4">
+                          <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                            <Tags className="h-4 w-4" />
+                            标签
+                          </div>
+                          <TagPicker tags={tags} selectedTagIds={selectedTagIds} onToggle={handleToggleTag} />
+                        </div>
+
+                        <div className="md:col-span-2 panel-strong px-4 py-4">
+                          <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                            <ListChecks className="h-4 w-4" />
+                            子任务
+                          </div>
+                          <div className="flex gap-2">
+                            <input className="field-input" value={draftSubtask} onChange={(event) => setDraftSubtask(event.target.value)} placeholder="添加一个 checklist 项" />
+                            <Button type="button" tone="secondary" onClick={handleAddSubtask}>
+                              添加
+                            </Button>
+                          </div>
+                          {subtasks.length > 0 ? (
+                            <div className="mt-3 space-y-2">
+                              {subtasks.map((item, index) => (
+                                <motion.div key={`${item}-${index}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="panel flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                                  <span>{item}</span>
+                                  <button type="button" className="muted" onClick={() => removeSubtask(index)}>
+                                    移除
+                                  </button>
+                                </motion.div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+              </section>
+
+              {createFormError ? <div className="text-sm text-[#d11f3e]">{createFormError}</div> : null}
+              {createMutationError ? <div className="text-sm text-[#d11f3e]">{createMutationError}</div> : null}
+            </div>
+          </div>
+
+          <div className="border-t border-[var(--border)] bg-[var(--surface-strong)] px-5 py-4 md:px-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <Button tone="ghost" onClick={onClose}>
+                取消
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                <Plus className="h-4 w-4" />
+                {isSaving ? '保存中...' : '创建 Todo'}
+              </Button>
+            </div>
+          </div>
+        </motion.form>
+      </motion.div>
+    </>
   )
 }
 
@@ -384,35 +720,22 @@ function EditTodoDrawer({
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
-              <div>
+              <div className="panel-strong px-4 py-4">
                 <label className="mb-2 block text-sm font-semibold">截止时间</label>
                 <input className="field-input" type="datetime-local" value={editDueDate} onChange={(event) => setEditDueDate(event.target.value)} />
               </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold">优先级</label>
-                <select className="field-input field-select" value={editPriority} onChange={(event) => setEditPriority(Number(event.target.value) as TodoPriority)}>
-                  {priorityOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="panel-strong px-4 py-4">
+                <label className="mb-3 block text-sm font-semibold">优先级</label>
+                <PriorityPicker value={editPriority} onChange={setEditPriority} />
               </div>
             </div>
 
-            <div>
+            <div className="panel-strong px-4 py-4">
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
                 <BellRing className="h-4 w-4" />
                 提醒设置
               </div>
-              <select className="field-input field-select" value={editReminderType} onChange={(event) => setEditReminderType(event.target.value as TodoReminderType)}>
-                {reminderOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <div className="mt-2 text-sm muted">{reminderOptions.find((item) => item.value === editReminderType)?.hint}</div>
+              <ReminderPicker value={editReminderType} onChange={setEditReminderType} />
 
               {editReminderType === 'custom_date' ? (
                 <div className="mt-3">
@@ -421,29 +744,12 @@ function EditTodoDrawer({
               ) : null}
             </div>
 
-            <div>
+            <div className="panel-strong px-4 py-4">
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
                 <Tags className="h-4 w-4" />
                 标签
               </div>
-              <div className="flex flex-wrap gap-2">
-                {tags.length === 0 ? <div className="text-sm muted">当前没有可用标签。</div> : null}
-                {tags.map((tag) => {
-                  const selected = editSelectedTagIds.includes(tag.id)
-
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => handleToggleEditTag(tag.id)}
-                      className={`tag-chip ${selected ? 'ring-2 ring-[var(--accent)]' : ''}`}
-                    >
-                      <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
-                      {tag.name}
-                    </button>
-                  )
-                })}
-              </div>
+              <TagPicker tags={tags} selectedTagIds={editSelectedTagIds} onToggle={handleToggleEditTag} />
             </div>
 
             <div>
@@ -523,6 +829,7 @@ export function DashboardPage() {
   const tagsQuery = useTagsQuery(userId)
   const createTodoMutation = useCreateTodoMutation(userId)
   const toggleTodoStatusMutation = useToggleTodoStatusMutation(userId)
+  const toggleSubtaskMutation = useToggleSubtaskMutation(userId)
   const deleteTodoMutation = useDeleteTodoMutation(userId)
   const updateTodoMutation = useUpdateTodoMutation(userId)
   const reorderTodoMutation = useReorderTodoMutation(userId)
@@ -540,6 +847,7 @@ export function DashboardPage() {
   const [draftSubtask, setDraftSubtask] = useState('')
   const [subtasks, setSubtasks] = useState<string[]>([])
   const [createFormError, setCreateFormError] = useState<string | null>(null)
+  const [isCreateComposerOpen, setIsCreateComposerOpen] = useState(false)
   const [showCreateDetails, setShowCreateDetails] = useState(false)
   const [expandedSubtaskTodoIds, setExpandedSubtaskTodoIds] = useState<string[]>([])
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
@@ -605,14 +913,19 @@ export function DashboardPage() {
   const editingTodo = todos.find((todo) => todo.id === editingTodoId) ?? null
 
   useEffect(() => {
-    if (!editingTodoId) {
+    if (!editingTodoId && !isCreateComposerOpen) {
       return
     }
 
     const previousOverflow = document.body.style.overflow
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        handleCancelEdit()
+        if (editingTodoId) {
+          handleCancelEdit()
+          return
+        }
+
+        setIsCreateComposerOpen(false)
       }
     }
 
@@ -623,7 +936,35 @@ export function DashboardPage() {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [editingTodoId])
+  }, [editingTodoId, isCreateComposerOpen])
+
+  const resetCreateComposer = () => {
+    setTitle('')
+    setDescription('')
+    setDescriptionMode('write')
+    setDueDate('')
+    setReminderType('none')
+    setReminderAt('')
+    setPriority(2)
+    setSelectedTagIds([])
+    setSubtasks([])
+    setDraftSubtask('')
+    setCreateFormError(null)
+    setShowCreateDetails(false)
+  }
+
+  const handleOpenCreateComposer = () => {
+    if (editingTodoId) {
+      handleCancelEdit()
+    }
+
+    setIsCreateComposerOpen(true)
+  }
+
+  const handleCloseCreateComposer = () => {
+    resetCreateComposer()
+    setIsCreateComposerOpen(false)
+  }
 
   const handleToggleTag = (tagId: string) => {
     setSelectedTagIds((current) =>
@@ -708,6 +1049,7 @@ export function DashboardPage() {
       setDraftSubtask('')
       setCreateFormError(null)
       setShowCreateDetails(false)
+      setIsCreateComposerOpen(false)
     } catch {
       return
     }
@@ -724,6 +1066,7 @@ export function DashboardPage() {
     currentTagIds: string[],
     currentSubtasks: Subtask[],
   ) => {
+    setIsCreateComposerOpen(false)
     setEditingTodoId(todoId)
     setEditTitle(currentTitle)
     setEditDescription(currentDescription)
@@ -870,178 +1213,6 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <section>
-        <form className="panel p-6" onSubmit={(event) => void handleCreateTodo(event)}>
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-soft)] text-[var(--accent)]">
-              <Plus className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em] muted">Quick capture</div>
-              <h3 className="mt-1 text-xl font-semibold">先快速记下任务</h3>
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-4">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.7fr)_minmax(180px,0.7fr)]">
-              <div>
-                <label className="mb-2 block text-sm font-semibold">标题</label>
-                <input className="field-input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：完成 Supabase schema 上线" required />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold">截止时间</label>
-                <input className="field-input" type="datetime-local" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold">优先级</label>
-                <select className="field-input field-select" value={priority} onChange={(event) => setPriority(Number(event.target.value) as TodoPriority)}>
-                  {priorityOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <Button type="submit" disabled={createTodoMutation.isPending}>
-                {createTodoMutation.isPending ? '保存中...' : '创建 Todo'}
-              </Button>
-              {createFormError ? <div className="text-sm text-[#d11f3e]">{createFormError}</div> : null}
-              {createTodoMutation.error ? <div className="text-sm text-[#d11f3e]">{createTodoMutation.error.message}</div> : null}
-            </div>
-
-            <section className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-strong)]/65">
-              <button
-                type="button"
-                onClick={() => setShowCreateDetails((current) => !current)}
-                className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left"
-              >
-                <div>
-                  <div className="text-sm font-semibold">高级选项</div>
-                  <div className="mt-1 text-xs muted">
-                    描述、提醒、标签和子任务
-                    {selectedTagIds.length > 0 ? ` · ${selectedTagIds.length} 个标签` : ''}
-                    {subtasks.length > 0 ? ` · ${subtasks.length} 个子任务` : ''}
-                    {reminderType !== 'none' ? ' · 已设置提醒' : ''}
-                  </div>
-                </div>
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]">
-                  {showCreateDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </span>
-              </button>
-
-              {showCreateDetails ? (
-                <div className="grid gap-5 border-t border-[var(--border)] px-4 py-4 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <label className="mb-2 block text-sm font-semibold">描述</label>
-                    <div className="mb-2 flex flex-wrap gap-2">
-                      {(['write', 'preview'] as const).map((mode) => (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => setDescriptionMode(mode)}
-                          className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em]', descriptionMode === mode ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--surface-strong)] muted')}
-                        >
-                          {mode === 'write' ? '编辑' : '预览'}
-                        </button>
-                      ))}
-                    </div>
-                    {descriptionMode === 'write' ? (
-                      <textarea className="field-input field-textarea" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="补充说明、上下文和期望结果，支持标题、列表、链接和粗体。" />
-                    ) : (
-                      <div className="field-input min-h-[112px]">
-                        <MarkdownPreview content={description} emptyState="在左侧编辑后，这里会显示 Markdown 预览。" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                      <BellRing className="h-4 w-4" />
-                      提醒
-                    </div>
-                    <select className="field-input field-select" value={reminderType} onChange={(event) => setReminderType(event.target.value as TodoReminderType)}>
-                      {reminderOptions.map((item) => (
-                        <option key={item.value} value={item.value}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="mt-2 text-sm muted">{reminderOptions.find((item) => item.value === reminderType)?.hint}</div>
-
-                    {reminderType === 'custom_date' ? (
-                      <div className="mt-3">
-                        <label className="mb-2 block text-sm font-semibold">提醒时间</label>
-                        <input className="field-input" type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} />
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                      <Tags className="h-4 w-4" />
-                      标签
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {tags.length === 0 ? <div className="text-sm muted">当前还没有标签，可在设置页中创建。</div> : null}
-                      {tags.map((tag) => {
-                        const selected = selectedTagIds.includes(tag.id)
-
-                        return (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            onClick={() => handleToggleTag(tag.id)}
-                            className={`tag-chip ${selected ? 'ring-2 ring-[var(--accent)]' : ''}`}
-                          >
-                            <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
-                            {tag.name}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                      <ListChecks className="h-4 w-4" />
-                      子任务
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        className="field-input"
-                        value={draftSubtask}
-                        onChange={(event) => setDraftSubtask(event.target.value)}
-                        placeholder="添加一个 checklist 项"
-                      />
-                      <Button type="button" tone="secondary" onClick={handleAddSubtask}>
-                        添加
-                      </Button>
-                    </div>
-                    {subtasks.length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        {subtasks.map((item, index) => (
-                          <div key={`${item}-${index}`} className="panel-strong flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                            <span>{item}</span>
-                            <button type="button" className="muted" onClick={() => setSubtasks((current) => current.filter((_, currentIndex) => currentIndex !== index))}>
-                              移除
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-            </section>
-          </div>
-        </form>
-      </section>
-
       <section className="panel p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -1159,16 +1330,42 @@ export function DashboardPage() {
                                 子任务 {todo.subtasks.filter((subtask) => subtask.isCompleted).length}/{todo.subtasks.length}
                               </button>
 
-                              {expandedSubtaskTodoIds.includes(todo.id) ? (
-                                <div className="mt-3 space-y-2">
-                                  {todo.subtasks.map((subtask) => (
-                                    <div key={subtask.id} className="panel flex items-center gap-3 px-4 py-3 text-sm">
-                                      <span className={`h-2.5 w-2.5 rounded-full ${subtask.isCompleted ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`} />
-                                      <span className={subtask.isCompleted ? 'line-through opacity-60' : ''}>{subtask.title}</span>
+                              <AnimatePresence initial={false}>
+                                {expandedSubtaskTodoIds.includes(todo.id) ? (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.22, ease: 'easeOut' }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="mt-3 space-y-2">
+                                      {todo.subtasks.map((subtask) => (
+                                        <motion.label
+                                          key={subtask.id}
+                                          initial={{ opacity: 0, y: 6 }}
+                                          animate={{ opacity: 1, y: 0 }}
+                                          className="panel flex items-center gap-3 px-4 py-3 text-sm"
+                                        >
+                                          <input
+                                            className="field-checkbox h-4 w-4"
+                                            type="checkbox"
+                                            checked={subtask.isCompleted}
+                                            disabled={toggleSubtaskMutation.isPending}
+                                            onChange={(event) =>
+                                              toggleSubtaskMutation.mutate({
+                                                id: subtask.id,
+                                                isCompleted: event.target.checked,
+                                              })
+                                            }
+                                          />
+                                          <span className={subtask.isCompleted ? 'line-through opacity-60' : ''}>{subtask.title}</span>
+                                        </motion.label>
+                                      ))}
                                     </div>
-                                  ))}
-                                </div>
-                              ) : null}
+                                  </motion.div>
+                                ) : null}
+                              </AnimatePresence>
                             </div>
                           ) : null}
                         </div>
@@ -1213,43 +1410,94 @@ export function DashboardPage() {
         </DndContext>
       </section>
 
-      <EditTodoDrawer
-        isOpen={editingTodo !== null}
-        todoTitle={editingTodo?.title ?? ''}
-        tags={tags}
-        editTitle={editTitle}
-        setEditTitle={setEditTitle}
-        editDescription={editDescription}
-        setEditDescription={setEditDescription}
-        editDescriptionMode={editDescriptionMode}
-        setEditDescriptionMode={setEditDescriptionMode}
-        editDueDate={editDueDate}
-        setEditDueDate={setEditDueDate}
-        editReminderType={editReminderType}
-        setEditReminderType={setEditReminderType}
-        editReminderAt={editReminderAt}
-        setEditReminderAt={setEditReminderAt}
-        editPriority={editPriority}
-        setEditPriority={setEditPriority}
-        editSelectedTagIds={editSelectedTagIds}
-        handleToggleEditTag={handleToggleEditTag}
-        editSubtasks={editSubtasks}
-        setEditSubtasks={setEditSubtasks}
-        editDraftSubtask={editDraftSubtask}
-        setEditDraftSubtask={setEditDraftSubtask}
-        handleAddEditSubtask={handleAddEditSubtask}
-        editFormError={editFormError}
-        updateError={updateTodoMutation.error?.message ?? null}
-        replaceTagsError={replaceTodoTagsMutation.error?.message ?? null}
-        replaceSubtasksError={replaceTodoSubtasksMutation.error?.message ?? null}
-        isSaving={updateTodoMutation.isPending || replaceTodoTagsMutation.isPending || replaceTodoSubtasksMutation.isPending}
-        onClose={handleCancelEdit}
-        onSave={() => {
-          if (editingTodo) {
-            void handleUpdateTodo(editingTodo.id)
-          }
-        }}
-      />
+      <motion.button
+        type="button"
+        initial={{ opacity: 0, y: 16, scale: 0.94 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ delay: 0.18, duration: 0.26, ease: 'easeOut' }}
+        onClick={handleOpenCreateComposer}
+        className="fixed bottom-24 right-4 z-30 inline-flex h-14 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-5 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(18,88,214,0.32)] transition duration-200 hover:-translate-y-[1px] hover:opacity-95 md:right-6 lg:bottom-8 lg:right-8"
+      >
+        <Plus className="h-4 w-4" />
+        <span className="hidden sm:inline">添加任务</span>
+      </motion.button>
+
+      <AnimatePresence>
+        {isCreateComposerOpen ? (
+          <CreateTodoComposer
+            isOpen={isCreateComposerOpen}
+            title={title}
+            setTitle={setTitle}
+            dueDate={dueDate}
+            setDueDate={setDueDate}
+            priority={priority}
+            setPriority={setPriority}
+            description={description}
+            setDescription={setDescription}
+            descriptionMode={descriptionMode}
+            setDescriptionMode={setDescriptionMode}
+            reminderType={reminderType}
+            setReminderType={setReminderType}
+            reminderAt={reminderAt}
+            setReminderAt={setReminderAt}
+            tags={tags}
+            selectedTagIds={selectedTagIds}
+            handleToggleTag={handleToggleTag}
+            draftSubtask={draftSubtask}
+            setDraftSubtask={setDraftSubtask}
+            subtasks={subtasks}
+            handleAddSubtask={handleAddSubtask}
+            removeSubtask={(index) => setSubtasks((current) => current.filter((_, currentIndex) => currentIndex !== index))}
+            showCreateDetails={showCreateDetails}
+            setShowCreateDetails={setShowCreateDetails}
+            createFormError={createFormError}
+            createMutationError={createTodoMutation.error?.message ?? null}
+            isSaving={createTodoMutation.isPending}
+            onClose={handleCloseCreateComposer}
+            onSubmit={(event) => void handleCreateTodo(event)}
+          />
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {editingTodo ? (
+          <EditTodoDrawer
+            isOpen={editingTodo !== null}
+            todoTitle={editingTodo.title}
+            tags={tags}
+            editTitle={editTitle}
+            setEditTitle={setEditTitle}
+            editDescription={editDescription}
+            setEditDescription={setEditDescription}
+            editDescriptionMode={editDescriptionMode}
+            setEditDescriptionMode={setEditDescriptionMode}
+            editDueDate={editDueDate}
+            setEditDueDate={setEditDueDate}
+            editReminderType={editReminderType}
+            setEditReminderType={setEditReminderType}
+            editReminderAt={editReminderAt}
+            setEditReminderAt={setEditReminderAt}
+            editPriority={editPriority}
+            setEditPriority={setEditPriority}
+            editSelectedTagIds={editSelectedTagIds}
+            handleToggleEditTag={handleToggleEditTag}
+            editSubtasks={editSubtasks}
+            setEditSubtasks={setEditSubtasks}
+            editDraftSubtask={editDraftSubtask}
+            setEditDraftSubtask={setEditDraftSubtask}
+            handleAddEditSubtask={handleAddEditSubtask}
+            editFormError={editFormError}
+            updateError={updateTodoMutation.error?.message ?? null}
+            replaceTagsError={replaceTodoTagsMutation.error?.message ?? null}
+            replaceSubtasksError={replaceTodoSubtasksMutation.error?.message ?? null}
+            isSaving={updateTodoMutation.isPending || replaceTodoTagsMutation.isPending || replaceTodoSubtasksMutation.isPending}
+            onClose={handleCancelEdit}
+            onSave={() => {
+              void handleUpdateTodo(editingTodo.id)
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
     </AppShell>
   )
 }
