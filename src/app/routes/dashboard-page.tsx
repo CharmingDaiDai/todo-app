@@ -844,22 +844,30 @@ export function DashboardPage() {
         />
       }
     >
-      <section className="grid gap-4 sm:grid-cols-3">
-          <div className="panel p-5">
-            <div className="text-xs uppercase tracking-[0.18em] muted">Open</div>
-            <div className="mt-3 text-3xl font-semibold">{pendingCount}</div>
-            <div className="mt-2 text-sm muted">还在推进中的任务</div>
+      <section className="panel px-4 py-3 sm:px-5">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3">
+            <div className="text-[0.68rem] uppercase tracking-[0.18em] muted">Open</div>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <div className="text-2xl font-semibold">{pendingCount}</div>
+              <div className="text-xs muted">进行中</div>
+            </div>
           </div>
-          <div className="panel p-5">
-            <div className="text-xs uppercase tracking-[0.18em] muted">Due soon</div>
-            <div className="mt-3 text-3xl font-semibold">{dueSoonCount}</div>
-            <div className="mt-2 text-sm muted">24 小时内到期</div>
+          <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3">
+            <div className="text-[0.68rem] uppercase tracking-[0.18em] muted">Due soon</div>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <div className="text-2xl font-semibold">{dueSoonCount}</div>
+              <div className="text-xs muted">24 小时内</div>
+            </div>
           </div>
-          <div className="panel p-5">
-            <div className="text-xs uppercase tracking-[0.18em] muted">Done</div>
-            <div className="mt-3 text-3xl font-semibold">{completedCount}</div>
-            <div className="mt-2 text-sm muted">已经完成的任务</div>
+          <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3">
+            <div className="text-[0.68rem] uppercase tracking-[0.18em] muted">Done</div>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <div className="text-2xl font-semibold">{completedCount}</div>
+              <div className="text-xs muted">已完成</div>
+            </div>
           </div>
+        </div>
       </section>
 
       <section>
