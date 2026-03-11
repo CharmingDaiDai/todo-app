@@ -13,6 +13,7 @@ import { BellRing, CalendarDays, ChevronDown, ChevronUp, GripVertical, ListCheck
 import { useEffect, useMemo, useState, type ReactNode, type FormEvent } from 'react'
 import { AppShell } from '../../components/layout/app-shell'
 import { Button } from '../../components/ui/button'
+import { DateTimeField } from '../../components/ui/date-time-picker'
 import { MarkdownPreview } from '../../components/ui/markdown-preview'
 import {
   useCreateTodoMutation,
@@ -461,7 +462,7 @@ function CreateTodoComposer({
                     <CalendarDays className="h-4 w-4" />
                     截止时间
                   </div>
-                  <input className="field-input" type="datetime-local" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+                  <DateTimeField value={dueDate} onChange={setDueDate} placeholder="选择一个截止时间" helper="先定日期，再补具体时刻，任务节奏会更清楚。" />
                 </div>
 
                 <div className="panel-strong px-4 py-4">
@@ -533,7 +534,7 @@ function CreateTodoComposer({
                           {reminderType === 'custom_date' ? (
                             <div className="mt-4">
                               <label className="mb-2 block text-sm font-semibold">提醒时间</label>
-                              <input className="field-input" type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} />
+                              <DateTimeField value={reminderAt} onChange={setReminderAt} placeholder="选择提醒时间" helper="用于单独设置提醒触发时刻。" />
                             </div>
                           ) : null}
                         </div>
@@ -745,7 +746,7 @@ function EditTodoDrawer({
             <div className="grid gap-3 md:grid-cols-2">
               <div className="panel-strong px-4 py-4">
                 <label className="mb-2 block text-sm font-semibold">截止时间</label>
-                <input className="field-input" type="datetime-local" value={editDueDate} onChange={(event) => setEditDueDate(event.target.value)} />
+                <DateTimeField value={editDueDate} onChange={setEditDueDate} placeholder="选择一个截止时间" helper="保持和新增面板一致的时间编辑体验。" />
               </div>
               <div className="panel-strong px-4 py-4">
                 <label className="mb-3 block text-sm font-semibold">优先级</label>
@@ -762,7 +763,7 @@ function EditTodoDrawer({
 
               {editReminderType === 'custom_date' ? (
                 <div className="mt-3">
-                  <input className="field-input" type="datetime-local" value={editReminderAt} onChange={(event) => setEditReminderAt(event.target.value)} />
+                  <DateTimeField value={editReminderAt} onChange={setEditReminderAt} placeholder="选择提醒时间" helper="为这条任务设置一个独立提醒时刻。" />
                 </div>
               ) : null}
             </div>

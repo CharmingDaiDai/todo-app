@@ -219,6 +219,368 @@ textarea {
   accent-color: var(--accent);
 }
 
+.date-time-field {
+  position: relative;
+}
+
+.date-time-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-lg) - 2px);
+  padding: 0.95rem 1rem;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 68%),
+    linear-gradient(180deg, var(--surface-strong), rgba(255, 255, 255, 0.92));
+  color: var(--text-primary);
+  text-align: left;
+  transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.date-time-trigger:hover,
+.date-time-trigger-open {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  transform: translateY(-1px);
+  box-shadow: 0 18px 34px rgba(18, 88, 214, 0.1);
+}
+
+.date-time-trigger-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.date-time-trigger-icon {
+  display: inline-flex;
+  height: 2.6rem;
+  width: 2.6rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.date-time-trigger-label {
+  font-size: 0.97rem;
+  font-weight: 700;
+}
+
+.date-time-trigger-meta {
+  margin-top: 0.18rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.date-time-trigger-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: transform 180ms ease;
+}
+
+.date-time-trigger-chevron-open {
+  transform: rotate(180deg);
+}
+
+.date-time-panel {
+  margin-top: 0.85rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-xl) - 2px);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 14%, transparent), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.84));
+  box-shadow: 0 26px 60px rgba(33, 28, 17, 0.14);
+}
+
+.date-time-panel-grid {
+  display: grid;
+  gap: 0;
+}
+
+.date-time-calendar-shell {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.date-time-calendar-shell .rdp-root {
+  --rdp-accent-color: var(--accent);
+  --rdp-accent-background-color: color-mix(in srgb, var(--accent) 14%, white);
+  --rdp-day_button-border-radius: 16px;
+  --rdp-day-height: 42px;
+  --rdp-day-width: 42px;
+  margin: 0;
+}
+
+.date-time-calendar-shell .rdp-months {
+  justify-content: center;
+}
+
+.date-time-calendar-shell .rdp-month {
+  width: 100%;
+}
+
+.date-time-calendar-shell .rdp-month_caption {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.date-time-calendar-shell .rdp-button_previous,
+.date-time-calendar-shell .rdp-button_next {
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.date-time-calendar-shell .rdp-weekday {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.date-time-calendar-shell .rdp-day_button {
+  font-weight: 600;
+}
+
+.date-time-calendar-shell .rdp-selected .rdp-day_button {
+  box-shadow: 0 12px 24px rgba(18, 88, 214, 0.24);
+}
+
+.date-time-calendar-shell .rdp-today:not(.rdp-selected) .rdp-day_button {
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, white);
+  color: var(--accent);
+}
+
+.date-time-side {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.date-time-summary-card {
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: calc(var(--radius-lg) - 4px);
+  padding: 1rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, white), rgba(255, 255, 255, 0.78));
+}
+
+.date-time-summary-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  padding: 0.35rem 0.65rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.date-time-side-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.date-time-time-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.date-time-number-shell {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-lg) - 4px);
+  padding: 0.85rem 0.95rem;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.date-time-number-shell span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.date-time-number-shell-disabled {
+  opacity: 0.55;
+}
+
+.date-time-number {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 700;
+  outline: none;
+}
+
+.date-time-number::-webkit-outer-spin-button,
+.date-time-number::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.date-time-number[type='number'] {
+  -moz-appearance: textfield;
+}
+
+.date-time-colon {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.date-time-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.date-time-chip,
+.date-time-preset,
+.date-time-clear,
+.date-time-apply {
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.date-time-chip {
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  padding: 0.55rem 0.8rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.date-time-chip:disabled {
+  opacity: 0.45;
+}
+
+.date-time-chip-active,
+.date-time-chip:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, white);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.date-time-preset-grid {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.date-time-preset {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.18rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-lg) - 4px);
+  padding: 0.85rem 0.9rem;
+  background: rgba(255, 255, 255, 0.7);
+  text-align: left;
+}
+
+.date-time-preset:hover,
+.date-time-clear:hover,
+.date-time-apply:hover {
+  transform: translateY(-1px);
+}
+
+.date-time-preset-label {
+  font-size: 0.87rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.date-time-preset-hint {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.date-time-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.date-time-clear,
+.date-time-apply {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 9999px;
+  padding: 0.8rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.date-time-clear {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-primary);
+}
+
+.date-time-apply {
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 14px 28px rgba(18, 88, 214, 0.24);
+}
+
+@media (min-width: 768px) {
+  .date-time-panel-grid {
+    grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.92fr);
+  }
+
+  .date-time-calendar-shell {
+    border-right: 1px solid var(--border);
+    border-bottom: 0;
+    padding: 1.1rem;
+  }
+
+  .date-time-side {
+    padding: 1.1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .date-time-preset-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .date-time-actions {
+    flex-direction: column;
+  }
+}
+
 .nav-link {
   display: flex;
   align-items: center;
