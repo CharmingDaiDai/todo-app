@@ -2,7 +2,7 @@ import 'react-day-picker/style.css'
 
 import { AnimatePresence, motion } from 'framer-motion'
 import { CalendarDays, ChevronDown, Clock3, Sparkles, X } from 'lucide-react'
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { DayPicker } from 'react-day-picker'
 import { cn } from '../../lib/cn'
 
@@ -113,8 +113,10 @@ const quickPresets = [
 
 export function DateTimeField({ value, onChange, placeholder, helper }: DateTimeFieldProps) {
   const parsedValue = useMemo(() => parseLocalDateTime(value), [value])
+  const fieldRef = useRef<HTMLDivElement | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [isMobileViewport, setIsMobileViewport] = useState(() => window.innerWidth < 768)
+  const [isCompactLayout, setIsCompactLayout] = useState(false)
   const [visibleMonth, setVisibleMonth] = useState<Date>(parsedValue?.date ?? new Date())
 
   useEffect(() => {
@@ -132,6 +134,30 @@ export function DateTimeField({ value, onChange, placeholder, helper }: DateTime
 
     return () => {
       mediaQuery.removeEventListener('change', handleChange)
+    }
+  }, [])
+
+  useEffect(() => {
+    const fieldElement = fieldRef.current
+
+    if (!fieldElement) {
+      return
+    }
+
+    const updateCompactLayout = () => {
+      setIsCompactLayout(fieldElement.getBoundingClientRect().width < 720)
+    }
+
+    updateCompactLayout()
+
+    const observer = new ResizeObserver(() => {
+      updateCompactLayout()
+    })
+
+    observer.observe(fieldElement)
+
+    return () => {
+      observer.disconnect()
     }
   }, [])
 
@@ -185,7 +211,7 @@ export function DateTimeField({ value, onChange, placeholder, helper }: DateTime
   }
 
   return (
-    <div className="date-time-field">
+    <div ref={fieldRef} className="date-time-field">
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
@@ -237,7 +263,7 @@ export function DateTimeField({ value, onChange, placeholder, helper }: DateTime
                   setIsOpen(false)
                 }
               }}
-              className={cn('date-time-panel', isMobileViewport && 'date-time-panel-mobile')}
+              className={cn('date-time-panel', isMobileViewport && 'date-time-panel-mobile', !isMobileViewport && isCompactLayout && 'date-time-panel-compact')}
             >
               {isMobileViewport ? (
                 <div className="date-time-mobile-topbar">
@@ -252,7 +278,7 @@ export function DateTimeField({ value, onChange, placeholder, helper }: DateTime
                 </div>
               ) : null}
 
-              <div className="date-time-panel-grid">
+              <div className={cn('date-time-panel-grid', !isMobileViewport && isCompactLayout && 'date-time-panel-grid-compact')}>
                 <div className="date-time-calendar-shell">
                   <DayPicker
                     mode="single"
@@ -309,7 +335,7 @@ export function DateTimeField({ value, onChange, placeholder, helper }: DateTime
                       </label>
                     </div>
 
-                    <div className="date-time-mobile-time-groups">
+                    <div className={cn('date-time-mobile-time-groups', !isMobileViewport && isCompactLayout && 'date-time-mobile-time-groups-compact')}>
                       <div>
                         <div className="date-time-subheading">小时</div>
                         <div className="date-time-hour-grid">
