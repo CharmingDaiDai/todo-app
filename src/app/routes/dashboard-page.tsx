@@ -302,17 +302,23 @@ function SortableTodoCard({ id, disabled, content, actions, isActive = false }: 
         transform: CSS.Transform.toString(transform),
         transition,
       }}
-      className={cn('panel-strong p-5', isDragging && 'opacity-80', isActive && 'border-[var(--accent)] ring-2 ring-[var(--accent-soft)]')}
+      className={cn('group relative panel-strong p-5', isDragging && 'opacity-80', isActive && 'border-[var(--accent)] ring-2 ring-[var(--accent-soft)]')}
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 gap-4">{content}</div>
+      <div className="flex flex-col gap-4 lg:block">
+        <div className="flex min-w-0 gap-4 lg:pr-40">{content}</div>
 
-        <div className="flex gap-2 lg:flex-col">
+        <div
+          className={cn(
+            'flex gap-2 lg:absolute lg:right-4 lg:top-4 lg:rounded-full lg:border lg:border-[var(--border)] lg:bg-[var(--surface)]/96 lg:p-1.5 lg:shadow-[0_18px_30px_rgba(0,0,0,0.1)] lg:backdrop-blur-xl lg:transition lg:duration-200',
+            'lg:pointer-events-none lg:translate-y-1 lg:opacity-0 lg:group-hover:pointer-events-auto lg:group-hover:translate-y-0 lg:group-hover:opacity-100',
+            isActive && 'lg:pointer-events-auto lg:translate-y-0 lg:opacity-100',
+          )}
+        >
           <button
             type="button"
             aria-label="drag to reorder todo"
             className={cn(
-              'inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-semibold',
+              'inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-semibold transition duration-200 lg:h-10 lg:min-h-0 lg:w-10 lg:rounded-full lg:border-transparent lg:bg-transparent lg:px-0 lg:py-0 lg:hover:bg-[var(--accent-soft)]',
               disabled ? 'cursor-not-allowed opacity-45' : 'cursor-grab active:cursor-grabbing',
             )}
             disabled={disabled}
@@ -320,7 +326,7 @@ function SortableTodoCard({ id, disabled, content, actions, isActive = false }: 
             {...listeners}
           >
             <GripVertical className="h-4 w-4" />
-            拖拽
+            <span className="lg:hidden">拖拽</span>
           </button>
           {actions}
         </div>
@@ -422,8 +428,12 @@ function CreateTodoComposer({
           exit={{ opacity: 0, y: 18, scale: 0.98 }}
           transition={{ duration: 0.24, ease: 'easeOut' }}
           onSubmit={onSubmit}
-          className="panel flex max-h-[calc(100vh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden"
+          className="panel flex max-h-[calc(100vh-0.75rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-[32px] rounded-b-none md:max-h-[calc(100vh-3rem)] md:rounded-[var(--radius-xl)]"
         >
+          <div className="flex justify-center pb-1 pt-3 md:hidden">
+            <span className="h-1.5 w-14 rounded-full bg-[var(--border)]" />
+          </div>
+
           <div className="border-b border-[var(--border)] bg-[var(--surface-strong)] px-5 py-5 md:px-6">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -1375,6 +1385,7 @@ export function DashboardPage() {
                       <>
                         <Button
                           tone={editingTodoId === todo.id ? 'secondary' : 'ghost'}
+                          className="lg:h-10 lg:min-h-0 lg:w-10 lg:rounded-full lg:px-0 lg:py-0"
                           onClick={() =>
                             handleStartEdit(
                               todo.id,
@@ -1390,11 +1401,16 @@ export function DashboardPage() {
                           }
                         >
                           <PencilLine className="h-4 w-4" />
-                          {editingTodoId === todo.id ? '正在编辑' : '编辑'}
+                          <span className="lg:hidden">{editingTodoId === todo.id ? '正在编辑' : '编辑'}</span>
                         </Button>
-                        <Button tone="ghost" onClick={() => deleteTodoMutation.mutate(todo.id)} disabled={deleteTodoMutation.isPending}>
+                        <Button
+                          tone="ghost"
+                          className="lg:h-10 lg:min-h-0 lg:w-10 lg:rounded-full lg:px-0 lg:py-0"
+                          onClick={() => deleteTodoMutation.mutate(todo.id)}
+                          disabled={deleteTodoMutation.isPending}
+                        >
                           <Trash2 className="h-4 w-4" />
-                          删除
+                          <span className="lg:hidden">删除</span>
                         </Button>
                       </>
                     }
