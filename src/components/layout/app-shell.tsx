@@ -3,7 +3,6 @@ import { House, Settings, Wifi, WifiOff } from 'lucide-react'
 import { useEffect, useState, type PropsWithChildren, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { cn } from '../../lib/cn'
-import { ThemeSwitcher } from '../theme/theme-switcher'
 
 type AppShellProps = PropsWithChildren<{
   eyebrow: string
@@ -34,19 +33,14 @@ export function AppShell({ eyebrow, title, description, mobileToolbar, children 
   }, [])
 
   return (
-    <div className="relative min-h-screen overflow-hidden px-4 py-5 pb-28 md:px-6 md:py-6 md:pb-6 xl:px-8">
-      <div className="pointer-events-none absolute inset-0 opacity-70">
-        <div className="ambient-orb left-0 top-10 h-64 w-64 bg-[var(--accent)]" />
-        <div className="ambient-orb bottom-0 right-0 h-72 w-72 bg-[var(--accent-strong)]" />
-      </div>
-
-      <div className="relative z-10 mx-auto grid max-w-7xl gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+    <div className="relative min-h-screen px-4 py-5 pb-28 md:px-6 md:py-6 md:pb-6 xl:px-8">
+      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="hidden panel flex-col gap-6 p-5 lg:sticky lg:top-6 lg:flex lg:h-[calc(100vh-3rem)]">
           <div className="space-y-3">
             <div className="text-xs uppercase tracking-[0.22em] muted">Deep Todo</div>
             <div>
-              <h1 className="text-2xl font-semibold">Build the immersive task hub.</h1>
-              <p className="mt-2 text-sm muted">工程骨架已接入 Supabase、主题引擎与 PWA 配置。</p>
+              <h1 className="text-2xl font-semibold">Keep work moving.</h1>
+              <p className="mt-2 text-sm muted">主工作区只保留任务执行相关入口，低频配置统一下沉到设置页。</p>
             </div>
           </div>
 
@@ -73,7 +67,11 @@ export function AppShell({ eyebrow, title, description, mobileToolbar, children 
             </div>
           </div>
 
-          <ThemeSwitcher />
+          <div className="panel-strong px-4 py-4">
+            <div className="text-xs uppercase tracking-[0.18em] muted">Workspace focus</div>
+            <div className="mt-2 text-sm font-semibold">快速新建、过滤和任务列表优先</div>
+            <p className="mt-2 text-sm muted">主题、版本和推送配置保留在设置页，避免主界面分散注意力。</p>
+          </div>
         </aside>
 
         <motion.main
@@ -86,7 +84,7 @@ export function AppShell({ eyebrow, title, description, mobileToolbar, children 
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-[0.68rem] uppercase tracking-[0.22em] muted">Deep Todo</div>
-                <div className="mt-2 text-2xl font-semibold">Task cockpit</div>
+                <div className="mt-2 text-2xl font-semibold">Task workspace</div>
               </div>
               <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-semibold">
                 {isOnline ? <Wifi className="h-3.5 w-3.5 text-[var(--accent)]" /> : <WifiOff className="h-3.5 w-3.5 text-[var(--accent)]" />}
@@ -106,8 +104,8 @@ export function AppShell({ eyebrow, title, description, mobileToolbar, children 
                 <p className="mt-3 max-w-2xl text-sm muted">{description}</p>
               </div>
               <div className="panel-strong inline-flex items-center gap-3 px-4 py-3">
-                <span className="h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
-                <span className="text-sm font-semibold">Phase 1 baseline complete</span>
+                <span className={`h-2.5 w-2.5 rounded-full ${isOnline ? 'bg-[var(--accent)]' : 'bg-[#d11f3e]'}`} />
+                <span className="text-sm font-semibold">{isOnline ? '同步已连接' : '当前离线缓存模式'}</span>
               </div>
             </div>
           </section>

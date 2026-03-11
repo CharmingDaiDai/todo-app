@@ -12,7 +12,6 @@ import { motion } from 'framer-motion'
 import { BellRing, CalendarClock, GripVertical, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode, type FormEvent } from 'react'
 import { AppShell } from '../../components/layout/app-shell'
-import { ThemeStage } from '../../components/theme/theme-stage'
 import { Button } from '../../components/ui/button'
 import { MarkdownPreview } from '../../components/ui/markdown-preview'
 import {
@@ -33,7 +32,6 @@ import { calculateNewOrderIndex } from '../../features/todos/order'
 import type { Subtask, TodoPriority, TodoReminderType } from '../../features/todos/types'
 import { cn } from '../../lib/cn'
 import { useAuthStore } from '../../store/auth-store'
-import { useThemeStore } from '../../store/theme-store'
 
 const priorityOptions: Array<{ value: TodoPriority; label: string; tone: string }> = [
   { value: 3, label: '高优先级', tone: '#d11f3e' },
@@ -135,6 +133,16 @@ function getReminderSummary(reminderType: TodoReminderType, reminderAt: string |
   }
 
   return reminderAt ? `自定义提醒 ${formatDate(reminderAt)}` : '自定义提醒'
+}
+
+function getDescriptionSnippet(value: string) {
+  const compact = value.replace(/[>#*_`\[\]()|!-]/g, ' ').replace(/\s+/g, ' ').trim()
+
+  if (!compact) {
+    return null
+  }
+
+  return compact.length > 140 ? `${compact.slice(0, 140)}...` : compact
 }
 
 type DashboardFiltersProps = {
@@ -262,8 +270,6 @@ function SortableTodoCard({ id, disabled, content, actions }: SortableTodoCardPr
 
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user)
-  const language = useThemeStore((state) => state.language)
-  const mode = useThemeStore((state) => state.mode)
   const userId = user?.id
   const todosQuery = useTodosQuery(userId)
   const tagsQuery = useTagsQuery(userId)
@@ -289,6 +295,8 @@ export function DashboardPage() {
   const [draftSubtask, setDraftSubtask] = useState('')
   const [subtasks, setSubtasks] = useState<string[]>([])
   const [createFormError, setCreateFormError] = useState<string | null>(null)
+  const [showCreateDetails, setShowCreateDetails] = useState(false)
+  const [showTagManager, setShowTagManager] = useState(false)
   const [tagName, setTagName] = useState('')
   const [tagColor, setTagColor] = useState(tagColors[0])
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
@@ -580,8 +588,8 @@ export function DashboardPage() {
   return (
     <AppShell
       eyebrow="Workspace"
-      title="Live Todo workspace"
-      description="当前页已经直接连接 Supabase 数据层，可创建标签、任务和子任务，并支持完成状态切换与基础筛选排序。"
+      title="Todo workspace"
+      description="先记录，再推进。主界面只保留高频操作：快速新建、状态过滤、优先级排序和任务执行。"
       mobileToolbar={
         <DashboardFilters
           statusFilter={statusFilter}
@@ -592,90 +600,62 @@ export function DashboardPage() {
         />
       }
     >
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <ThemeStage />
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_320px]">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="panel p-5">
+            <div className="text-xs uppercase tracking-[0.18em] muted">Open</div>
+            <div className="mt-3 text-3xl font-semibold">{pendingCount}</div>
+            <div className="mt-2 text-sm muted">还在推进中的任务</div>
+          </div>
+          <div className="panel p-5">
+            <div className="text-xs uppercase tracking-[0.18em] muted">Due soon</div>
+            <div className="mt-3 text-3xl font-semibold">{dueSoonCount}</div>
+            <div className="mt-2 text-sm muted">24 小时内到期</div>
+          </div>
+          <div className="panel p-5">
+            <div className="text-xs uppercase tracking-[0.18em] muted">Done</div>
+            <div className="mt-3 text-3xl font-semibold">{completedCount}</div>
+            <div className="mt-2 text-sm muted">已经完成的任务</div>
+          </div>
+        </div>
 
-        <section className="panel p-6">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em] muted">Session</div>
-              <h3 className="mt-2 text-xl font-semibold">欢迎回来，{user?.email ?? 'Builder'}</h3>
+        <section className="panel p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-soft)] text-[var(--accent)]">
+              <CalendarClock className="h-4 w-4" />
             </div>
-            <div className="rounded-[var(--radius-md)] bg-[var(--accent-soft)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">
-              {language} / {mode}
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] muted">Today focus</div>
+              <div className="mt-1 text-sm font-semibold">欢迎回来，{user?.email ?? 'Builder'}</div>
             </div>
           </div>
 
-          <div className="mt-6 space-y-4">
-            <div className="panel-strong flex items-start gap-4 p-4">
-              <CalendarClock className="mt-0.5 h-5 w-5 text-[var(--accent)]" />
-              <div>
-                <div className="font-semibold">当前已接入真实数据层</div>
-                <p className="mt-1 text-sm muted">任务、标签和子任务会直接通过 React Query 与 Supabase 交互，下一步再补拖拽排序与编辑流。</p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="panel-strong p-4">
-                <div className="text-xs uppercase tracking-[0.18em] muted">Open</div>
-                <div className="mt-2 text-2xl font-semibold">{pendingCount}</div>
-              </div>
-              <div className="panel-strong p-4">
-                <div className="text-xs uppercase tracking-[0.18em] muted">Done</div>
-                <div className="mt-2 text-2xl font-semibold">{completedCount}</div>
-              </div>
-              <div className="panel-strong p-4">
-                <div className="text-xs uppercase tracking-[0.18em] muted">Due 24h</div>
-                <div className="mt-2 text-2xl font-semibold">{dueSoonCount}</div>
-              </div>
-            </div>
+          <div className="mt-4 space-y-3 text-sm muted">
+            <p>先用上方快速录入记录事项，再通过下面的过滤和排序推进任务。</p>
+            <p>{canDragSort ? '当前可以直接拖拽任务调整顺序。' : '当前处于筛选或编辑状态，拖拽排序暂时关闭。'}</p>
           </div>
         </section>
-      </div>
+      </section>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <form className="panel p-6" onSubmit={(event) => void handleCreateTodo(event)}>
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-soft)] text-[var(--accent)]">
               <Plus className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.18em] muted">Create task</div>
-              <h3 className="mt-1 text-xl font-semibold">录入新的 Todo</h3>
+              <div className="text-xs uppercase tracking-[0.18em] muted">Quick capture</div>
+              <h3 className="mt-1 text-xl font-semibold">先快速记下任务</h3>
             </div>
           </div>
 
           <div className="mt-6 grid gap-4">
-            <div>
-              <label className="mb-2 block text-sm font-semibold">标题</label>
-              <input className="field-input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：完成 Supabase schema 上线" required />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-semibold">描述</label>
-              <div className="mb-2 flex flex-wrap gap-2">
-                {(['write', 'preview'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setDescriptionMode(mode)}
-                    className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em]', descriptionMode === mode ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--surface-strong)] muted')}
-                  >
-                    {mode === 'write' ? '编辑' : '预览'}
-                  </button>
-                ))}
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.7fr)_minmax(180px,0.7fr)]">
+              <div>
+                <label className="mb-2 block text-sm font-semibold">标题</label>
+                <input className="field-input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：完成 Supabase schema 上线" required />
               </div>
-              {descriptionMode === 'write' ? (
-                <textarea className="field-input field-textarea" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="补充说明、上下文和期望结果，支持标题、列表、链接和粗体。" />
-              ) : (
-                <div className="field-input min-h-[112px]">
-                  <MarkdownPreview content={description} emptyState="在左侧编辑后，这里会显示 Markdown 预览。" />
-                </div>
-              )}
-              <div className="mt-2 text-xs muted">支持轻量 Markdown：标题、粗体、斜体、列表、引用、行内代码、链接、表格和任务列表。</div>
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-semibold">截止时间</label>
                 <input className="field-input" type="datetime-local" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
@@ -693,94 +673,125 @@ export function DashboardPage() {
               </div>
             </div>
 
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                <BellRing className="h-4 w-4" />
-                提醒
-              </div>
-              <select className="field-input field-select" value={reminderType} onChange={(event) => setReminderType(event.target.value as TodoReminderType)}>
-                {reminderOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              <div className="mt-2 text-sm muted">{reminderOptions.find((item) => item.value === reminderType)?.hint}</div>
-
-              {reminderType === 'custom_date' ? (
-                <div className="mt-3">
-                  <label className="mb-2 block text-sm font-semibold">提醒时间</label>
-                  <input className="field-input" type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} />
-                </div>
-              ) : null}
-
-              {(reminderType === 'hour' || reminderType === 'ten_minutes') && !dueDate ? (
-                <div className="mt-3 text-sm text-[#d11f3e]">预设提醒依赖截止时间，请先填写上面的截止时间。</div>
-              ) : null}
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                <Tags className="h-4 w-4" />
-                标签
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {tags.length === 0 ? <div className="text-sm muted">先在右侧创建标签，然后回来多选。</div> : null}
-                {tags.map((tag) => {
-                  const selected = selectedTagIds.includes(tag.id)
-
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => handleToggleTag(tag.id)}
-                      className={`tag-chip ${selected ? 'ring-2 ring-[var(--accent)]' : ''}`}
-                    >
-                      <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
-                      {tag.name}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                <ListChecks className="h-4 w-4" />
-                子任务
-              </div>
-              <div className="flex gap-2">
-                <input
-                  className="field-input"
-                  value={draftSubtask}
-                  onChange={(event) => setDraftSubtask(event.target.value)}
-                  placeholder="添加一个 checklist 项"
-                />
-                <Button type="button" tone="secondary" onClick={handleAddSubtask}>
-                  添加
-                </Button>
-              </div>
-              {subtasks.length > 0 ? (
-                <div className="mt-3 space-y-2">
-                  {subtasks.map((item, index) => (
-                    <div key={`${item}-${index}`} className="panel-strong flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                      <span>{item}</span>
-                      <button type="button" className="muted" onClick={() => setSubtasks((current) => current.filter((_, currentIndex) => currentIndex !== index))}>
-                        移除
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
             <div className="flex flex-wrap gap-3">
               <Button type="submit" disabled={createTodoMutation.isPending}>
                 {createTodoMutation.isPending ? '保存中...' : '创建 Todo'}
               </Button>
+              <Button tone="secondary" onClick={() => setShowCreateDetails((current) => !current)}>
+                {showCreateDetails ? '收起高级选项' : '展开描述、提醒和子任务'}
+              </Button>
               {createFormError ? <div className="text-sm text-[#d11f3e]">{createFormError}</div> : null}
               {createTodoMutation.error ? <div className="text-sm text-[#d11f3e]">{createTodoMutation.error.message}</div> : null}
             </div>
+
+            {showCreateDetails ? (
+              <>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold">描述</label>
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {(['write', 'preview'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setDescriptionMode(mode)}
+                        className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em]', descriptionMode === mode ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--surface-strong)] muted')}
+                      >
+                        {mode === 'write' ? '编辑' : '预览'}
+                      </button>
+                    ))}
+                  </div>
+                  {descriptionMode === 'write' ? (
+                    <textarea className="field-input field-textarea" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="补充说明、上下文和期望结果，支持标题、列表、链接和粗体。" />
+                  ) : (
+                    <div className="field-input min-h-[112px]">
+                      <MarkdownPreview content={description} emptyState="在左侧编辑后，这里会显示 Markdown 预览。" />
+                    </div>
+                  )}
+                  <div className="mt-2 text-xs muted">支持轻量 Markdown：标题、粗体、列表、引用、行内代码、链接、表格和任务列表。</div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                    <BellRing className="h-4 w-4" />
+                    提醒
+                  </div>
+                  <select className="field-input field-select" value={reminderType} onChange={(event) => setReminderType(event.target.value as TodoReminderType)}>
+                    {reminderOptions.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mt-2 text-sm muted">{reminderOptions.find((item) => item.value === reminderType)?.hint}</div>
+
+                  {reminderType === 'custom_date' ? (
+                    <div className="mt-3">
+                      <label className="mb-2 block text-sm font-semibold">提醒时间</label>
+                      <input className="field-input" type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} />
+                    </div>
+                  ) : null}
+
+                  {(reminderType === 'hour' || reminderType === 'ten_minutes') && !dueDate ? (
+                    <div className="mt-3 text-sm text-[#d11f3e]">预设提醒依赖截止时间，请先填写上面的截止时间。</div>
+                  ) : null}
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                    <Tags className="h-4 w-4" />
+                    标签
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {tags.length === 0 ? <div className="text-sm muted">当前还没有标签，可在右侧快速创建。</div> : null}
+                    {tags.map((tag) => {
+                      const selected = selectedTagIds.includes(tag.id)
+
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => handleToggleTag(tag.id)}
+                          className={`tag-chip ${selected ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                        >
+                          <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
+                          {tag.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                    <ListChecks className="h-4 w-4" />
+                    子任务
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      className="field-input"
+                      value={draftSubtask}
+                      onChange={(event) => setDraftSubtask(event.target.value)}
+                      placeholder="添加一个 checklist 项"
+                    />
+                    <Button type="button" tone="secondary" onClick={handleAddSubtask}>
+                      添加
+                    </Button>
+                  </div>
+                  {subtasks.length > 0 ? (
+                    <div className="mt-3 space-y-2">
+                      {subtasks.map((item, index) => (
+                        <div key={`${item}-${index}`} className="panel-strong flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                          <span>{item}</span>
+                          <button type="button" className="muted" onClick={() => setSubtasks((current) => current.filter((_, currentIndex) => currentIndex !== index))}>
+                            移除
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
           </div>
         </form>
 
@@ -790,38 +801,51 @@ export function DashboardPage() {
               <Tags className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.18em] muted">Tag studio</div>
-              <h3 className="mt-1 text-xl font-semibold">管理任务标签</h3>
+              <div className="text-xs uppercase tracking-[0.18em] muted">Labels</div>
+              <h3 className="mt-1 text-xl font-semibold">标签作为次级配置</h3>
             </div>
           </div>
 
-          <form className="mt-6 space-y-4" onSubmit={(event) => void handleCreateTag(event)}>
-            <div>
-              <label className="mb-2 block text-sm font-semibold">标签名称</label>
-              <input className="field-input" value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="例如：Product、Infra、Personal" required />
+          <div className="mt-5 space-y-4">
+            <div className="panel-strong p-4">
+              <div className="text-sm font-semibold">已创建 {tags.length} 个标签</div>
+              <p className="mt-2 text-sm muted">默认先创建任务，标签只在需要做聚类或过滤时再补充。</p>
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-semibold">颜色</label>
-              <div className="flex flex-wrap gap-2">
-                {tagColors.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => setTagColor(color)}
-                    className={`h-10 w-10 rounded-full border-2 ${tagColor === color ? 'border-[var(--text-primary)]' : 'border-transparent'}`}
-                    style={{ backgroundColor: color }}
-                    aria-label={`select ${color}`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <Button type="submit" tone="secondary" disabled={createTagMutation.isPending}>
-              {createTagMutation.isPending ? '创建中...' : '创建标签'}
+            <Button tone="secondary" onClick={() => setShowTagManager((current) => !current)} block>
+              {showTagManager ? '收起标签管理' : '展开标签管理'}
             </Button>
-            {createTagMutation.error ? <div className="text-sm text-[#d11f3e]">{createTagMutation.error.message}</div> : null}
-          </form>
+          </div>
+
+          {showTagManager ? (
+            <form className="mt-6 space-y-4" onSubmit={(event) => void handleCreateTag(event)}>
+              <div>
+                <label className="mb-2 block text-sm font-semibold">标签名称</label>
+                <input className="field-input" value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="例如：Product、Infra、Personal" required />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">颜色</label>
+                <div className="flex flex-wrap gap-2">
+                  {tagColors.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setTagColor(color)}
+                      className={`h-10 w-10 rounded-full border-2 ${tagColor === color ? 'border-[var(--text-primary)]' : 'border-transparent'}`}
+                      style={{ backgroundColor: color }}
+                      aria-label={`select ${color}`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <Button type="submit" tone="secondary" disabled={createTagMutation.isPending}>
+                {createTagMutation.isPending ? '创建中...' : '创建标签'}
+              </Button>
+              {createTagMutation.error ? <div className="text-sm text-[#d11f3e]">{createTagMutation.error.message}</div> : null}
+            </form>
+          ) : null}
 
           <div className="mt-6 flex flex-wrap gap-2">
             {tags.map((tag) => (
@@ -848,6 +872,7 @@ export function DashboardPage() {
           <div>
             <div className="text-xs uppercase tracking-[0.18em] muted">Task board</div>
             <h3 className="mt-2 text-xl font-semibold">任务列表</h3>
+            <p className="mt-2 text-sm muted">默认按扫描效率展示，只保留标题、时间、优先级和关键信息。</p>
           </div>
 
           <DashboardFilters
@@ -886,11 +911,7 @@ export function DashboardPage() {
           </div>
         ) : null}
 
-        {!canDragSort ? (
-          <div className="mt-4 text-sm muted">拖拽排序仅在“默认排序 + 全部状态 + 无标签筛选 + 非编辑中”时启用，避免在筛选视图里写出错误顺序。</div>
-        ) : (
-          <div className="mt-4 text-sm muted">当前可直接拖拽任务卡片右侧的“拖拽”按钮来调整顺序。</div>
-        )}
+        {!canDragSort ? <div className="mt-4 text-sm muted">拖拽排序仅在默认排序、全部状态、无标签筛选且未编辑任务时启用。</div> : <div className="mt-4 text-sm muted">当前可直接拖拽任务卡片右侧的“拖拽”按钮来调整顺序。</div>}
 
         {todosQuery.isLoading ? <div className="mt-6 text-sm muted">正在加载任务数据…</div> : null}
         {todosQuery.error ? (
@@ -1075,7 +1096,7 @@ export function DashboardPage() {
                           </span>
                         </div>
 
-                        {todo.description ? <MarkdownPreview className="mt-3 text-sm" content={todo.description} /> : null}
+                        {getDescriptionSnippet(todo.description) ? <p className="mt-3 text-sm muted">{getDescriptionSnippet(todo.description)}</p> : null}
 
                         <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.12em] muted">
                           <span>Due {formatDate(todo.dueDate)}</span>
@@ -1096,7 +1117,13 @@ export function DashboardPage() {
                       </div>
                     ) : null}
 
-                    {todo.subtasks.length > 0 ? (
+                    {todo.subtasks.length > 0 && editingTodoId !== todo.id ? (
+                      <div className="mt-4 text-sm muted">
+                        已完成 {todo.subtasks.filter((subtask) => subtask.isCompleted).length} / {todo.subtasks.length} 个子任务
+                      </div>
+                    ) : null}
+
+                    {todo.subtasks.length > 0 && editingTodoId === todo.id ? (
                       <div className="mt-4 space-y-2">
                         {todo.subtasks.map((subtask) => (
                           <label key={subtask.id} className="panel flex items-center gap-3 px-4 py-3 text-sm">

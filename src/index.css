@@ -148,10 +148,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   color: var(--text-primary);
-  background:
-    var(--hero-gradient),
-    var(--page-bg-secondary);
-  background-color: var(--page-bg);
+  background: linear-gradient(180deg, var(--page-bg-secondary), transparent 38%), var(--page-bg);
   font-family: var(--font-body);
   line-height: 1.5;
   font-synthesis: none;
@@ -179,14 +176,14 @@ textarea {
   border: 1px solid var(--border);
   background: var(--surface);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow);
+  box-shadow: 0 18px 40px rgba(33, 28, 17, 0.08);
 }
 
 .panel-strong {
   border: 1px solid var(--border);
   background: var(--surface-strong);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow);
+  box-shadow: 0 18px 40px rgba(33, 28, 17, 0.08);
 }
 
 .field-input {
@@ -402,9 +399,7 @@ textarea {
 }
 
 .mobile-shell-header {
-  background:
-    linear-gradient(135deg, var(--surface-strong), transparent 140%),
-    var(--surface);
+  background: var(--surface);
 }
 
 .mobile-tabbar {
