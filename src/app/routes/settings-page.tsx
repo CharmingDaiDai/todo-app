@@ -3,6 +3,7 @@ import { BellRing, Clock3, LogOut, ShieldCheck } from 'lucide-react'
 import { AppShell } from '../../components/layout/app-shell'
 import { Button } from '../../components/ui/button'
 import { usePushNotifications } from '../../features/notifications/hooks'
+import { TagManagerSection } from '../../features/todos/components/tag-manager-section'
 import { appRelease, formatVersionLabel } from '../../config/app-release'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth-store'
@@ -160,6 +161,8 @@ export function SettingsPage() {
             {notifications.error ? <div className="text-sm text-[#d11f3e]">{notifications.error}</div> : null}
           </div>
         </section>
+
+        <TagManagerSection userId={user?.id} />
       </div>
     </AppShell>
   )

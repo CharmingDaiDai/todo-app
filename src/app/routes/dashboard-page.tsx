@@ -15,9 +15,7 @@ import { AppShell } from '../../components/layout/app-shell'
 import { Button } from '../../components/ui/button'
 import { MarkdownPreview } from '../../components/ui/markdown-preview'
 import {
-  useCreateTagMutation,
   useCreateTodoMutation,
-  useDeleteTagMutation,
   useDeleteTodoMutation,
   useReorderTodoMutation,
   useReplaceTodoSubtasksMutation,
@@ -37,8 +35,6 @@ const priorityOptions: Array<{ value: TodoPriority; label: string; tone: string 
   { value: 2, label: '中优先级', tone: 'var(--accent)' },
   { value: 1, label: '低优先级', tone: '#2f8f58' },
 ]
-
-const tagColors = ['#1258d6', '#ff4d00', '#2f8f58', '#8a43ff', '#d11f3e', '#f59e0b']
 
 const reminderOptions: Array<{ value: TodoReminderType; label: string; hint: string }> = [
   { value: 'none', label: '不提醒', hint: '只记录截止时间，不触发 Web Push。' },
@@ -526,8 +522,6 @@ export function DashboardPage() {
   const todosQuery = useTodosQuery(userId)
   const tagsQuery = useTagsQuery(userId)
   const createTodoMutation = useCreateTodoMutation(userId)
-  const createTagMutation = useCreateTagMutation(userId)
-  const deleteTagMutation = useDeleteTagMutation(userId)
   const toggleTodoStatusMutation = useToggleTodoStatusMutation(userId)
   const deleteTodoMutation = useDeleteTodoMutation(userId)
   const updateTodoMutation = useUpdateTodoMutation(userId)
@@ -547,9 +541,6 @@ export function DashboardPage() {
   const [subtasks, setSubtasks] = useState<string[]>([])
   const [createFormError, setCreateFormError] = useState<string | null>(null)
   const [showCreateDetails, setShowCreateDetails] = useState(false)
-  const [showTagManager, setShowTagManager] = useState(false)
-  const [tagName, setTagName] = useState('')
-  const [tagColor, setTagColor] = useState(tagColors[0])
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
   const [sortMode, setSortMode] = useState<'manual' | 'due' | 'priority'>('manual')
   const [activeTagFilters, setActiveTagFilters] = useState<string[]>([])
@@ -714,35 +705,6 @@ export function DashboardPage() {
     }
   }
 
-  const handleCreateTag = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    if (!userId || !tagName.trim()) {
-      return
-    }
-
-    try {
-      await createTagMutation.mutateAsync({
-        userId,
-        name: tagName.trim(),
-        color: tagColor,
-      })
-
-      setTagName('')
-      setTagColor(tagColors[(tagColors.indexOf(tagColor) + 1) % tagColors.length])
-    } catch {
-      return
-    }
-  }
-
-  const handleDeleteTag = async (tagId: string) => {
-    try {
-      await deleteTagMutation.mutateAsync(tagId)
-    } catch {
-      return
-    }
-  }
-
   const handleStartEdit = (
     todoId: string,
     currentTitle: string,
@@ -863,6 +825,7 @@ export function DashboardPage() {
       eyebrow="Workspace"
       title="Todo workspace"
       description="先记录，再推进。主界面只保留高频操作：快速新建、状态过滤、优先级排序和任务执行。"
+      hidePageHeader
       mobileToolbar={
         <DashboardFilters
           statusFilter={statusFilter}
@@ -891,7 +854,7 @@ export function DashboardPage() {
           </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <section>
         <form className="panel p-6" onSubmit={(event) => void handleCreateTodo(event)}>
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-soft)] text-[var(--accent)]">
@@ -1044,77 +1007,6 @@ export function DashboardPage() {
             ) : null}
           </div>
         </form>
-
-        <section className="panel p-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-soft)] text-[var(--accent)]">
-              <Tags className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em] muted">Labels</div>
-              <h3 className="mt-1 text-xl font-semibold">标签作为次级配置</h3>
-            </div>
-          </div>
-
-          <div className="mt-5 space-y-4">
-            <div className="panel-strong p-4">
-              <div className="text-sm font-semibold">已创建 {tags.length} 个标签</div>
-              <p className="mt-2 text-sm muted">默认先创建任务，标签只在需要做聚类或过滤时再补充。</p>
-            </div>
-
-            <Button tone="secondary" onClick={() => setShowTagManager((current) => !current)} block>
-              {showTagManager ? '收起标签管理' : '展开标签管理'}
-            </Button>
-          </div>
-
-          {showTagManager ? (
-            <form className="mt-6 space-y-4" onSubmit={(event) => void handleCreateTag(event)}>
-              <div>
-                <label className="mb-2 block text-sm font-semibold">标签名称</label>
-                <input className="field-input" value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="例如：Product、Infra、Personal" required />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold">颜色</label>
-                <div className="flex flex-wrap gap-2">
-                  {tagColors.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setTagColor(color)}
-                      className={`h-10 w-10 rounded-full border-2 ${tagColor === color ? 'border-[var(--text-primary)]' : 'border-transparent'}`}
-                      style={{ backgroundColor: color }}
-                      aria-label={`select ${color}`}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <Button type="submit" tone="secondary" disabled={createTagMutation.isPending}>
-                {createTagMutation.isPending ? '创建中...' : '创建标签'}
-              </Button>
-              {createTagMutation.error ? <div className="text-sm text-[#d11f3e]">{createTagMutation.error.message}</div> : null}
-            </form>
-          ) : null}
-
-          <div className="mt-6 flex flex-wrap gap-2">
-            {tags.map((tag) => (
-              <span key={tag.id} className="tag-chip">
-                <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
-                {tag.name}
-                <button
-                  type="button"
-                  className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--text-primary)]"
-                  onClick={() => void handleDeleteTag(tag.id)}
-                  aria-label={`delete tag ${tag.name}`}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </span>
-            ))}
-          </div>
-          {deleteTagMutation.error ? <div className="mt-3 text-sm text-[#d11f3e]">{deleteTagMutation.error.message}</div> : null}
-        </section>
       </section>
 
       <section className="panel p-6">
