@@ -18,6 +18,7 @@ const navItems = [
 
 export function AppShell({ eyebrow, title, description, mobileToolbar, children }: AppShellProps) {
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine)
+  const networkLabel = isOnline ? '在线' : '离线'
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true)
@@ -40,7 +41,7 @@ export function AppShell({ eyebrow, title, description, mobileToolbar, children 
             <div className="text-xs uppercase tracking-[0.22em] muted">Deep Todo</div>
             <div>
               <h1 className="text-2xl font-semibold">Keep work moving.</h1>
-              <p className="mt-2 text-sm muted">主工作区只保留任务执行相关入口，低频配置统一下沉到设置页。</p>
+              <p className="mt-2 text-sm muted">任务优先的工作台。</p>
             </div>
           </div>
 
@@ -57,20 +58,11 @@ export function AppShell({ eyebrow, title, description, mobileToolbar, children 
             })}
           </nav>
 
-          <div className="panel-strong flex items-center justify-between px-4 py-3">
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em] muted">Network</div>
-              <div className="mt-1 text-sm font-semibold">{isOnline ? 'Online sync' : 'Offline cache'}</div>
-            </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-soft)] text-[var(--accent)]">
+          <div className="inline-flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
               {isOnline ? <Wifi className="h-5 w-5" /> : <WifiOff className="h-5 w-5" />}
             </div>
-          </div>
-
-          <div className="panel-strong px-4 py-4">
-            <div className="text-xs uppercase tracking-[0.18em] muted">Workspace focus</div>
-            <div className="mt-2 text-sm font-semibold">快速新建、过滤和任务列表优先</div>
-            <p className="mt-2 text-sm muted">主题、版本和推送配置保留在设置页，避免主界面分散注意力。</p>
+            <span>{networkLabel}</span>
           </div>
         </aside>
 
@@ -83,12 +75,15 @@ export function AppShell({ eyebrow, title, description, mobileToolbar, children 
           <section className="panel mobile-shell-header overflow-hidden p-5 lg:hidden">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-[0.68rem] uppercase tracking-[0.22em] muted">Deep Todo</div>
-                <div className="mt-2 text-2xl font-semibold">Task workspace</div>
+                <div className="text-[0.68rem] uppercase tracking-[0.22em] muted">{eyebrow}</div>
+                <div className="mt-2 text-2xl font-semibold">{title}</div>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-3 py-2 text-xs font-semibold">
-                {isOnline ? <Wifi className="h-3.5 w-3.5 text-[var(--accent)]" /> : <WifiOff className="h-3.5 w-3.5 text-[var(--accent)]" />}
-                {isOnline ? 'Online' : 'Offline'}
+              <div
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-strong)] text-[var(--accent)]"
+                aria-label={networkLabel}
+                title={networkLabel}
+              >
+                {isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
               </div>
             </div>
 
@@ -103,9 +98,12 @@ export function AppShell({ eyebrow, title, description, mobileToolbar, children 
                 <h2 className="mt-2 text-3xl font-semibold md:text-4xl">{title}</h2>
                 <p className="mt-3 max-w-2xl text-sm muted">{description}</p>
               </div>
-              <div className="panel-strong inline-flex items-center gap-3 px-4 py-3">
-                <span className={`h-2.5 w-2.5 rounded-full ${isOnline ? 'bg-[var(--accent)]' : 'bg-[#d11f3e]'}`} />
-                <span className="text-sm font-semibold">{isOnline ? '同步已连接' : '当前离线缓存模式'}</span>
+              <div
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-strong)] text-[var(--accent)]"
+                aria-label={networkLabel}
+                title={networkLabel}
+              >
+                {isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4 text-[#d11f3e]" />}
               </div>
             </div>
           </section>

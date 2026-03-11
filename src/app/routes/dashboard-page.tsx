@@ -9,7 +9,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { motion } from 'framer-motion'
-import { BellRing, CalendarClock, GripVertical, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
+import { BellRing, GripVertical, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode, type FormEvent } from 'react'
 import { AppShell } from '../../components/layout/app-shell'
 import { Button } from '../../components/ui/button'
@@ -57,6 +57,10 @@ function formatDate(date: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(date))
+}
+
+function hasReminder(reminderType: TodoReminderType) {
+  return reminderType !== 'none'
 }
 
 function toDateTimeLocalValue(date: string | null) {
@@ -117,22 +121,6 @@ function resolveReminderConfig(reminderType: TodoReminderType, dueDate: string, 
     reminderAt: null,
     error: null,
   }
-}
-
-function getReminderSummary(reminderType: TodoReminderType, reminderAt: string | null) {
-  if (reminderType === 'none') {
-    return '未设置提醒'
-  }
-
-  if (reminderType === 'hour') {
-    return '提前 1 小时提醒'
-  }
-
-  if (reminderType === 'ten_minutes') {
-    return '提前 10 分钟提醒'
-  }
-
-  return reminderAt ? `自定义提醒 ${formatDate(reminderAt)}` : '自定义提醒'
 }
 
 function getDescriptionSnippet(value: string) {
@@ -600,8 +588,7 @@ export function DashboardPage() {
         />
       }
     >
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_320px]">
-        <div className="grid gap-4 sm:grid-cols-3">
+      <section className="grid gap-4 sm:grid-cols-3">
           <div className="panel p-5">
             <div className="text-xs uppercase tracking-[0.18em] muted">Open</div>
             <div className="mt-3 text-3xl font-semibold">{pendingCount}</div>
@@ -617,24 +604,6 @@ export function DashboardPage() {
             <div className="mt-3 text-3xl font-semibold">{completedCount}</div>
             <div className="mt-2 text-sm muted">已经完成的任务</div>
           </div>
-        </div>
-
-        <section className="panel p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-soft)] text-[var(--accent)]">
-              <CalendarClock className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em] muted">Today focus</div>
-              <div className="mt-1 text-sm font-semibold">欢迎回来，{user?.email ?? 'Builder'}</div>
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-3 text-sm muted">
-            <p>先用上方快速录入记录事项，再通过下面的过滤和排序推进任务。</p>
-            <p>{canDragSort ? '当前可以直接拖拽任务调整顺序。' : '当前处于筛选或编辑状态，拖拽排序暂时关闭。'}</p>
-          </div>
-        </section>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -729,10 +698,6 @@ export function DashboardPage() {
                       <label className="mb-2 block text-sm font-semibold">提醒时间</label>
                       <input className="field-input" type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} />
                     </div>
-                  ) : null}
-
-                  {(reminderType === 'hour' || reminderType === 'ten_minutes') && !dueDate ? (
-                    <div className="mt-3 text-sm text-[#d11f3e]">预设提醒依赖截止时间，请先填写上面的截止时间。</div>
                   ) : null}
                 </div>
 
@@ -872,7 +837,6 @@ export function DashboardPage() {
           <div>
             <div className="text-xs uppercase tracking-[0.18em] muted">Task board</div>
             <h3 className="mt-2 text-xl font-semibold">任务列表</h3>
-            <p className="mt-2 text-sm muted">默认按扫描效率展示，只保留标题、时间、优先级和关键信息。</p>
           </div>
 
           <DashboardFilters
@@ -910,8 +874,6 @@ export function DashboardPage() {
             })}
           </div>
         ) : null}
-
-        {!canDragSort ? <div className="mt-4 text-sm muted">拖拽排序仅在默认排序、全部状态、无标签筛选且未编辑任务时启用。</div> : <div className="mt-4 text-sm muted">当前可直接拖拽任务卡片右侧的“拖拽”按钮来调整顺序。</div>}
 
         {todosQuery.isLoading ? <div className="mt-6 text-sm muted">正在加载任务数据…</div> : null}
         {todosQuery.error ? (
@@ -996,10 +958,6 @@ export function DashboardPage() {
                             <div className="mt-3">
                               <input className="field-input" type="datetime-local" value={editReminderAt} onChange={(event) => setEditReminderAt(event.target.value)} />
                             </div>
-                          ) : null}
-
-                          {(editReminderType === 'hour' || editReminderType === 'ten_minutes') && !editDueDate ? (
-                            <div className="mt-3 text-sm text-[#d11f3e]">预设提醒依赖截止时间，请先填写截止时间。</div>
                           ) : null}
                         </div>
                         <div>
@@ -1098,10 +1056,14 @@ export function DashboardPage() {
 
                         {getDescriptionSnippet(todo.description) ? <p className="mt-3 text-sm muted">{getDescriptionSnippet(todo.description)}</p> : null}
 
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.12em] muted">
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] muted">
                           <span>Due {formatDate(todo.dueDate)}</span>
-                          <span>{getReminderSummary(todo.reminderType, todo.reminderAt)}</span>
-                          <span>Created {formatDate(todo.createdAt)}</span>
+                          {hasReminder(todo.reminderType) ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-2 py-1">
+                              <BellRing className="h-3 w-3" />
+                              Reminder
+                            </span>
+                          ) : null}
                         </div>
                       </>
                     )}
