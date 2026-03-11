@@ -2,7 +2,7 @@ export const appRelease = {
   version: __APP_VERSION__,
   channel: 'beta',
   codename: 'Northstar',
-  summary: '时间面板已升级为移动端可拖拽 sheet，并扩展为更大的触控时间选择区。',
+  summary: '时间面板已修正紧凑布局的样式优先级，抽屉中的窄宽度场景不再被桌面双栏布局覆盖。',
 } as const
 
 export function formatVersionLabel(version: string, channel: string) {
