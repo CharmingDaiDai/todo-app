@@ -600,6 +600,7 @@ function CreateTodoComposer({
 
 type EditTodoDrawerProps = {
   isOpen: boolean
+  sheetMode?: boolean
   todoTitle: string
   tags: ReturnType<typeof useTagsQuery>['data'] extends infer T ? NonNullable<T> : never
   editTitle: string
@@ -634,6 +635,7 @@ type EditTodoDrawerProps = {
 
 function EditTodoDrawer({
   isOpen,
+  sheetMode = false,
   todoTitle,
   tags,
   editTitle,
@@ -682,12 +684,23 @@ function EditTodoDrawer({
       />
 
       <motion.aside
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
+        initial={sheetMode ? { y: '100%', opacity: 0 } : { x: '100%', opacity: 0 }}
+        animate={sheetMode ? { y: 0, opacity: 1 } : { x: 0, opacity: 1 }}
+        exit={sheetMode ? { y: '100%', opacity: 0 } : { x: '100%', opacity: 0 }}
         transition={{ duration: 0.28, ease: 'easeOut' }}
-        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l border-[var(--border)] bg-[var(--page-bg)] shadow-[0_24px_80px_rgba(0,0,0,0.22)]"
+        className={cn(
+          'fixed z-50 flex w-full flex-col bg-[var(--page-bg)] shadow-[0_24px_80px_rgba(0,0,0,0.22)]',
+          sheetMode
+            ? 'inset-x-0 bottom-0 max-h-[calc(100vh-0.5rem)] rounded-t-[32px] border-t border-[var(--border)]'
+            : 'inset-y-0 right-0 max-w-2xl border-l border-[var(--border)]',
+        )}
       >
+        {sheetMode ? (
+          <div className="flex justify-center pb-1 pt-3 md:hidden">
+            <span className="h-1.5 w-14 rounded-full bg-[var(--border)]" />
+          </div>
+        ) : null}
+
         <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface-strong)] px-5 py-5 md:px-6">
           <div>
             <div className="text-xs uppercase tracking-[0.18em] muted">Edit todo</div>
@@ -860,6 +873,7 @@ export function DashboardPage() {
   const [isCreateComposerOpen, setIsCreateComposerOpen] = useState(false)
   const [showCreateDetails, setShowCreateDetails] = useState(false)
   const [expandedSubtaskTodoIds, setExpandedSubtaskTodoIds] = useState<string[]>([])
+  const [isMobileViewport, setIsMobileViewport] = useState(() => window.innerWidth < 768)
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
   const [sortMode, setSortMode] = useState<'manual' | 'due' | 'priority'>('manual')
   const [activeTagFilters, setActiveTagFilters] = useState<string[]>([])
@@ -947,6 +961,18 @@ export function DashboardPage() {
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [editingTodoId, isCreateComposerOpen])
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)')
+    const handleChange = (event: MediaQueryListEvent) => setIsMobileViewport(event.matches)
+
+    setIsMobileViewport(mediaQuery.matches)
+    mediaQuery.addEventListener('change', handleChange)
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleChange)
+    }
+  }, [])
 
   const resetCreateComposer = () => {
     setTitle('')
@@ -1277,146 +1303,164 @@ export function DashboardPage() {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => void handleDragEnd(event)}>
           <SortableContext items={visibleTodos.map((todo) => todo.id)} strategy={verticalListSortingStrategy}>
             <div className="mt-6 space-y-4">
-              {visibleTodos.map((todo, index) => (
-                <motion.div key={todo.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04, duration: 0.28 }}>
-                  <SortableTodoCard
-                    id={todo.id}
-                    disabled={!canDragSort}
-                    isActive={editingTodoId === todo.id}
-                    content={
-                      <>
-                        <input
-                          className="field-checkbox mt-1 h-5 w-5"
-                          type="checkbox"
-                          checked={todo.status === 'completed'}
-                          onChange={(event) =>
-                            toggleTodoStatusMutation.mutate({
-                              id: todo.id,
-                              status: event.target.checked ? 'completed' : 'pending',
-                            })
-                          }
-                        />
+              <AnimatePresence initial={false}>
+                {visibleTodos.map((todo, index) => (
+                  <motion.div
+                    key={todo.id}
+                    layout
+                    initial={{ opacity: 0, y: 16, scale: 0.98 }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                      scale: todo.status === 'completed' ? 0.985 : 1,
+                    }}
+                    exit={{ opacity: 0, y: -18, scale: 0.95 }}
+                    transition={{
+                      delay: index * 0.03,
+                      duration: 0.28,
+                      ease: 'easeOut',
+                      layout: { duration: 0.22, ease: 'easeOut' },
+                    }}
+                  >
+                    <SortableTodoCard
+                      id={todo.id}
+                      disabled={!canDragSort}
+                      isActive={editingTodoId === todo.id}
+                      content={
+                        <>
+                          <input
+                            className="field-checkbox mt-1 h-5 w-5"
+                            type="checkbox"
+                            checked={todo.status === 'completed'}
+                            onChange={(event) =>
+                              toggleTodoStatusMutation.mutate({
+                                id: todo.id,
+                                status: event.target.checked ? 'completed' : 'pending',
+                              })
+                            }
+                          />
 
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h4 className={`text-lg font-semibold ${todo.status === 'completed' ? 'line-through opacity-60' : ''}`}>{todo.title}</h4>
-                            <span className="tag-chip" style={{ borderColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }}>
-                              <span className="tag-chip-dot" style={{ backgroundColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }} />
-                              {priorityOptions.find((item) => item.value === todo.priority)?.label}
-                            </span>
-                          </div>
-
-                          {getDescriptionSnippet(todo.description) ? <p className="mt-3 text-sm muted">{getDescriptionSnippet(todo.description)}</p> : null}
-
-                          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] muted">
-                            <span>Due {formatDate(todo.dueDate)}</span>
-                            {hasReminder(todo.reminderType) ? (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-2 py-1">
-                                <BellRing className="h-3 w-3" />
-                                Reminder
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className={`text-lg font-semibold ${todo.status === 'completed' ? 'line-through opacity-60' : ''}`}>{todo.title}</h4>
+                              <span className="tag-chip" style={{ borderColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }}>
+                                <span className="tag-chip-dot" style={{ backgroundColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }} />
+                                {priorityOptions.find((item) => item.value === todo.priority)?.label}
                               </span>
+                            </div>
+
+                            {getDescriptionSnippet(todo.description) ? <p className="mt-3 text-sm muted">{getDescriptionSnippet(todo.description)}</p> : null}
+
+                            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] muted">
+                              <span>Due {formatDate(todo.dueDate)}</span>
+                              {hasReminder(todo.reminderType) ? (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-2 py-1">
+                                  <BellRing className="h-3 w-3" />
+                                  Reminder
+                                </span>
+                              ) : null}
+                            </div>
+
+                            {todo.tags.length > 0 ? (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {todo.tags.map((tag) => (
+                                  <span key={tag.id} className="tag-chip">
+                                    <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
+                                    {tag.name}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+
+                            {todo.subtasks.length > 0 ? (
+                              <div className="mt-4">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleSubtaskList(todo.id)}
+                                  className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]"
+                                >
+                                  {expandedSubtaskTodoIds.includes(todo.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                  子任务 {todo.subtasks.filter((subtask) => subtask.isCompleted).length}/{todo.subtasks.length}
+                                </button>
+
+                                <AnimatePresence initial={false}>
+                                  {expandedSubtaskTodoIds.includes(todo.id) ? (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      transition={{ duration: 0.22, ease: 'easeOut' }}
+                                      className="overflow-hidden"
+                                    >
+                                      <div className="mt-3 space-y-2">
+                                        {todo.subtasks.map((subtask) => (
+                                          <motion.label
+                                            key={subtask.id}
+                                            initial={{ opacity: 0, y: 6 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="panel flex items-center gap-3 px-4 py-3 text-sm"
+                                          >
+                                            <input
+                                              className="field-checkbox h-4 w-4"
+                                              type="checkbox"
+                                              checked={subtask.isCompleted}
+                                              disabled={toggleSubtaskMutation.isPending}
+                                              onChange={(event) =>
+                                                toggleSubtaskMutation.mutate({
+                                                  id: subtask.id,
+                                                  isCompleted: event.target.checked,
+                                                })
+                                              }
+                                            />
+                                            <span className={subtask.isCompleted ? 'line-through opacity-60' : ''}>{subtask.title}</span>
+                                          </motion.label>
+                                        ))}
+                                      </div>
+                                    </motion.div>
+                                  ) : null}
+                                </AnimatePresence>
+                              </div>
                             ) : null}
                           </div>
-
-                          {todo.tags.length > 0 ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {todo.tags.map((tag) => (
-                                <span key={tag.id} className="tag-chip">
-                                  <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
-                                  {tag.name}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-
-                          {todo.subtasks.length > 0 ? (
-                            <div className="mt-4">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleSubtaskList(todo.id)}
-                                className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]"
-                              >
-                                {expandedSubtaskTodoIds.includes(todo.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                子任务 {todo.subtasks.filter((subtask) => subtask.isCompleted).length}/{todo.subtasks.length}
-                              </button>
-
-                              <AnimatePresence initial={false}>
-                                {expandedSubtaskTodoIds.includes(todo.id) ? (
-                                  <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.22, ease: 'easeOut' }}
-                                    className="overflow-hidden"
-                                  >
-                                    <div className="mt-3 space-y-2">
-                                      {todo.subtasks.map((subtask) => (
-                                        <motion.label
-                                          key={subtask.id}
-                                          initial={{ opacity: 0, y: 6 }}
-                                          animate={{ opacity: 1, y: 0 }}
-                                          className="panel flex items-center gap-3 px-4 py-3 text-sm"
-                                        >
-                                          <input
-                                            className="field-checkbox h-4 w-4"
-                                            type="checkbox"
-                                            checked={subtask.isCompleted}
-                                            disabled={toggleSubtaskMutation.isPending}
-                                            onChange={(event) =>
-                                              toggleSubtaskMutation.mutate({
-                                                id: subtask.id,
-                                                isCompleted: event.target.checked,
-                                              })
-                                            }
-                                          />
-                                          <span className={subtask.isCompleted ? 'line-through opacity-60' : ''}>{subtask.title}</span>
-                                        </motion.label>
-                                      ))}
-                                    </div>
-                                  </motion.div>
-                                ) : null}
-                              </AnimatePresence>
-                            </div>
-                          ) : null}
-                        </div>
-                      </>
-                    }
-                    actions={
-                      <>
-                        <Button
-                          tone={editingTodoId === todo.id ? 'secondary' : 'ghost'}
-                          className="lg:h-10 lg:min-h-0 lg:w-10 lg:rounded-full lg:px-0 lg:py-0"
-                          onClick={() =>
-                            handleStartEdit(
-                              todo.id,
-                              todo.title,
-                              todo.description,
-                              todo.dueDate,
-                              todo.reminderType,
-                              todo.reminderAt,
-                              todo.priority,
-                              todo.tags.map((tag) => tag.id),
-                              todo.subtasks,
-                            )
-                          }
-                        >
-                          <PencilLine className="h-4 w-4" />
-                          <span className="lg:hidden">{editingTodoId === todo.id ? '正在编辑' : '编辑'}</span>
-                        </Button>
-                        <Button
-                          tone="ghost"
-                          className="lg:h-10 lg:min-h-0 lg:w-10 lg:rounded-full lg:px-0 lg:py-0"
-                          onClick={() => deleteTodoMutation.mutate(todo.id)}
-                          disabled={deleteTodoMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="lg:hidden">删除</span>
-                        </Button>
-                      </>
-                    }
-                  />
-                </motion.div>
-              ))}
+                        </>
+                      }
+                      actions={
+                        <>
+                          <Button
+                            tone={editingTodoId === todo.id ? 'secondary' : 'ghost'}
+                            className="lg:h-10 lg:min-h-0 lg:w-10 lg:rounded-full lg:px-0 lg:py-0"
+                            onClick={() =>
+                              handleStartEdit(
+                                todo.id,
+                                todo.title,
+                                todo.description,
+                                todo.dueDate,
+                                todo.reminderType,
+                                todo.reminderAt,
+                                todo.priority,
+                                todo.tags.map((tag) => tag.id),
+                                todo.subtasks,
+                              )
+                            }
+                          >
+                            <PencilLine className="h-4 w-4" />
+                            <span className="lg:hidden">{editingTodoId === todo.id ? '正在编辑' : '编辑'}</span>
+                          </Button>
+                          <Button
+                            tone="ghost"
+                            className="lg:h-10 lg:min-h-0 lg:w-10 lg:rounded-full lg:px-0 lg:py-0"
+                            onClick={() => deleteTodoMutation.mutate(todo.id)}
+                            disabled={deleteTodoMutation.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="lg:hidden">删除</span>
+                          </Button>
+                        </>
+                      }
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
 
               {!todosQuery.isLoading && visibleTodos.length === 0 ? (
                 <div className="panel-strong p-6 text-sm muted">当前状态与标签筛选条件下还没有任务。先调整筛选条件，或者在上方创建第一条 Todo。</div>
@@ -1479,6 +1523,7 @@ export function DashboardPage() {
         {editingTodo ? (
           <EditTodoDrawer
             isOpen={editingTodo !== null}
+            sheetMode={isMobileViewport}
             todoTitle={editingTodo.title}
             tags={tags}
             editTitle={editTitle}
