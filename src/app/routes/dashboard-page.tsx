@@ -24,7 +24,6 @@ import {
   useReplaceTodoTagsMutation,
   useTagsQuery,
   useTodosQuery,
-  useToggleSubtaskMutation,
   useToggleTodoStatusMutation,
   useUpdateTodoMutation,
 } from '../../features/todos/hooks'
@@ -214,9 +213,10 @@ type SortableTodoCardProps = {
   disabled: boolean
   content: ReactNode
   actions: ReactNode
+  isActive?: boolean
 }
 
-function SortableTodoCard({ id, disabled, content, actions }: SortableTodoCardProps) {
+function SortableTodoCard({ id, disabled, content, actions, isActive = false }: SortableTodoCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
     disabled,
@@ -229,7 +229,7 @@ function SortableTodoCard({ id, disabled, content, actions }: SortableTodoCardPr
         transform: CSS.Transform.toString(transform),
         transition,
       }}
-      className={cn('panel-strong p-5', isDragging && 'opacity-80')}
+      className={cn('panel-strong p-5', isDragging && 'opacity-80', isActive && 'border-[var(--accent)] ring-2 ring-[var(--accent-soft)]')}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 gap-4">{content}</div>
@@ -256,6 +256,270 @@ function SortableTodoCard({ id, disabled, content, actions }: SortableTodoCardPr
   )
 }
 
+type EditTodoDrawerProps = {
+  isOpen: boolean
+  todoTitle: string
+  tags: ReturnType<typeof useTagsQuery>['data'] extends infer T ? NonNullable<T> : never
+  editTitle: string
+  setEditTitle: (value: string) => void
+  editDescription: string
+  setEditDescription: (value: string) => void
+  editDescriptionMode: 'write' | 'preview'
+  setEditDescriptionMode: (value: 'write' | 'preview') => void
+  editDueDate: string
+  setEditDueDate: (value: string) => void
+  editReminderType: TodoReminderType
+  setEditReminderType: (value: TodoReminderType) => void
+  editReminderAt: string
+  setEditReminderAt: (value: string) => void
+  editPriority: TodoPriority
+  setEditPriority: (value: TodoPriority) => void
+  editSelectedTagIds: string[]
+  handleToggleEditTag: (tagId: string) => void
+  editSubtasks: Array<{ title: string; isCompleted: boolean }>
+  setEditSubtasks: React.Dispatch<React.SetStateAction<Array<{ title: string; isCompleted: boolean }>>>
+  editDraftSubtask: string
+  setEditDraftSubtask: (value: string) => void
+  handleAddEditSubtask: () => void
+  editFormError: string | null
+  updateError: string | null
+  replaceTagsError: string | null
+  replaceSubtasksError: string | null
+  isSaving: boolean
+  onClose: () => void
+  onSave: () => void
+}
+
+function EditTodoDrawer({
+  isOpen,
+  todoTitle,
+  tags,
+  editTitle,
+  setEditTitle,
+  editDescription,
+  setEditDescription,
+  editDescriptionMode,
+  setEditDescriptionMode,
+  editDueDate,
+  setEditDueDate,
+  editReminderType,
+  setEditReminderType,
+  editReminderAt,
+  setEditReminderAt,
+  editPriority,
+  setEditPriority,
+  editSelectedTagIds,
+  handleToggleEditTag,
+  editSubtasks,
+  setEditSubtasks,
+  editDraftSubtask,
+  setEditDraftSubtask,
+  handleAddEditSubtask,
+  editFormError,
+  updateError,
+  replaceTagsError,
+  replaceSubtasksError,
+  isSaving,
+  onClose,
+  onSave,
+}: EditTodoDrawerProps) {
+  if (!isOpen) {
+    return null
+  }
+
+  return (
+    <>
+      <motion.button
+        type="button"
+        aria-label="close edit drawer"
+        className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+
+      <motion.aside
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ duration: 0.28, ease: 'easeOut' }}
+        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l border-[var(--border)] bg-[var(--page-bg)] shadow-[0_24px_80px_rgba(0,0,0,0.22)]"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface-strong)] px-5 py-5 md:px-6">
+          <div>
+            <div className="text-xs uppercase tracking-[0.18em] muted">Edit todo</div>
+            <h3 className="mt-2 text-xl font-semibold">{todoTitle || '编辑任务'}</h3>
+            <p className="mt-2 text-sm muted">在这里集中修改描述、提醒、标签和子任务，不打断主列表浏览。</p>
+          </div>
+          <Button tone="ghost" onClick={onClose} aria-label="关闭编辑抽屉">
+            <X className="h-4 w-4" />
+            关闭
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5 md:px-6">
+          <div className="space-y-5">
+            <div>
+              <label className="mb-2 block text-sm font-semibold">标题</label>
+              <input className="field-input" value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
+            </div>
+
+            <div>
+              <div className="mb-2 flex flex-wrap gap-2">
+                {(['write', 'preview'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setEditDescriptionMode(mode)}
+                    className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em]', editDescriptionMode === mode ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--surface-strong)] muted')}
+                  >
+                    {mode === 'write' ? '编辑' : '预览'}
+                  </button>
+                ))}
+              </div>
+              {editDescriptionMode === 'write' ? (
+                <textarea className="field-input field-textarea" value={editDescription} onChange={(event) => setEditDescription(event.target.value)} placeholder="补充说明、上下文和期望结果，支持标题、列表、链接和粗体。" />
+              ) : (
+                <div className="field-input min-h-[112px]">
+                  <MarkdownPreview content={editDescription} emptyState="编辑描述后，这里会显示 Markdown 预览。" />
+                </div>
+              )}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-semibold">截止时间</label>
+                <input className="field-input" type="datetime-local" value={editDueDate} onChange={(event) => setEditDueDate(event.target.value)} />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold">优先级</label>
+                <select className="field-input field-select" value={editPriority} onChange={(event) => setEditPriority(Number(event.target.value) as TodoPriority)}>
+                  {priorityOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <BellRing className="h-4 w-4" />
+                提醒设置
+              </div>
+              <select className="field-input field-select" value={editReminderType} onChange={(event) => setEditReminderType(event.target.value as TodoReminderType)}>
+                {reminderOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <div className="mt-2 text-sm muted">{reminderOptions.find((item) => item.value === editReminderType)?.hint}</div>
+
+              {editReminderType === 'custom_date' ? (
+                <div className="mt-3">
+                  <input className="field-input" type="datetime-local" value={editReminderAt} onChange={(event) => setEditReminderAt(event.target.value)} />
+                </div>
+              ) : null}
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <Tags className="h-4 w-4" />
+                标签
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {tags.length === 0 ? <div className="text-sm muted">当前没有可用标签。</div> : null}
+                {tags.map((tag) => {
+                  const selected = editSelectedTagIds.includes(tag.id)
+
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => handleToggleEditTag(tag.id)}
+                      className={`tag-chip ${selected ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                    >
+                      <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
+                      {tag.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <ListChecks className="h-4 w-4" />
+                子任务
+              </div>
+              <div className="flex gap-2">
+                <input className="field-input" value={editDraftSubtask} onChange={(event) => setEditDraftSubtask(event.target.value)} placeholder="添加一个新的子任务" />
+                <Button type="button" tone="secondary" onClick={handleAddEditSubtask}>
+                  添加
+                </Button>
+              </div>
+              <div className="mt-3 space-y-2">
+                {editSubtasks.length === 0 ? <div className="text-sm muted">当前没有子任务。</div> : null}
+                {editSubtasks.map((subtask, index) => (
+                  <div key={`${index}-${subtask.title}`} className="panel flex items-center gap-3 px-4 py-3">
+                    <input
+                      className="field-checkbox h-4 w-4"
+                      type="checkbox"
+                      checked={subtask.isCompleted}
+                      onChange={(event) =>
+                        setEditSubtasks((current) =>
+                          current.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, isCompleted: event.target.checked } : item,
+                          ),
+                        )
+                      }
+                    />
+                    <input
+                      className="field-input"
+                      value={subtask.title}
+                      onChange={(event) =>
+                        setEditSubtasks((current) =>
+                          current.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, title: event.target.value } : item,
+                          ),
+                        )
+                      }
+                    />
+                    <Button type="button" tone="ghost" onClick={() => setEditSubtasks((current) => current.filter((_, itemIndex) => itemIndex !== index))}>
+                      <X className="h-4 w-4" />
+                      删除
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {editFormError ? <div className="text-sm text-[#d11f3e]">{editFormError}</div> : null}
+            {updateError ? <div className="text-sm text-[#d11f3e]">{updateError}</div> : null}
+            {replaceTagsError ? <div className="text-sm text-[#d11f3e]">{replaceTagsError}</div> : null}
+            {replaceSubtasksError ? <div className="text-sm text-[#d11f3e]">{replaceSubtasksError}</div> : null}
+          </div>
+        </div>
+
+        <div className="border-t border-[var(--border)] bg-[var(--surface-strong)] px-5 py-4 md:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <Button tone="ghost" onClick={onClose}>
+              取消
+            </Button>
+            <Button tone="secondary" onClick={onSave} disabled={isSaving}>
+              <Save className="h-4 w-4" />
+              {isSaving ? '保存中...' : '保存更改'}
+            </Button>
+          </div>
+        </div>
+      </motion.aside>
+    </>
+  )
+}
+
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user)
   const userId = user?.id
@@ -266,7 +530,6 @@ export function DashboardPage() {
   const deleteTagMutation = useDeleteTagMutation(userId)
   const toggleTodoStatusMutation = useToggleTodoStatusMutation(userId)
   const deleteTodoMutation = useDeleteTodoMutation(userId)
-  const toggleSubtaskMutation = useToggleSubtaskMutation(userId)
   const updateTodoMutation = useUpdateTodoMutation(userId)
   const reorderTodoMutation = useReorderTodoMutation(userId)
   const replaceTodoTagsMutation = useReplaceTodoTagsMutation(userId)
@@ -347,6 +610,28 @@ export function DashboardPage() {
     return diff > 0 && diff <= 1000 * 60 * 60 * 24
   }).length
   const canDragSort = sortMode === 'manual' && statusFilter === 'all' && activeTagFilters.length === 0 && editingTodoId === null
+  const editingTodo = todos.find((todo) => todo.id === editingTodoId) ?? null
+
+  useEffect(() => {
+    if (!editingTodoId) {
+      return
+    }
+
+    const previousOverflow = document.body.style.overflow
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleCancelEdit()
+      }
+    }
+
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [editingTodoId])
 
   const handleToggleTag = (tagId: string) => {
     setSelectedTagIds((current) =>
@@ -891,6 +1176,7 @@ export function DashboardPage() {
                   <SortableTodoCard
                     id={todo.id}
                     disabled={!canDragSort}
+                    isActive={editingTodoId === todo.id}
                     content={
                       <>
                         <input
@@ -906,145 +1192,6 @@ export function DashboardPage() {
                         />
 
                         <div className="min-w-0">
-                    {editingTodoId === todo.id ? (
-                      <div className="space-y-3">
-                        <input className="field-input" value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
-                        <div>
-                          <div className="mb-2 flex flex-wrap gap-2">
-                            {(['write', 'preview'] as const).map((mode) => (
-                              <button
-                                key={mode}
-                                type="button"
-                                onClick={() => setEditDescriptionMode(mode)}
-                                className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em]', editDescriptionMode === mode ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--surface-strong)] muted')}
-                              >
-                                {mode === 'write' ? '编辑' : '预览'}
-                              </button>
-                            ))}
-                          </div>
-                          {editDescriptionMode === 'write' ? (
-                            <textarea className="field-input field-textarea" value={editDescription} onChange={(event) => setEditDescription(event.target.value)} placeholder="补充说明、上下文和期望结果，支持标题、列表、链接和粗体。" />
-                          ) : (
-                            <div className="field-input min-h-[112px]">
-                              <MarkdownPreview content={editDescription} emptyState="编辑描述后，这里会显示 Markdown 预览。" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <input className="field-input" type="datetime-local" value={editDueDate} onChange={(event) => setEditDueDate(event.target.value)} />
-                          <select className="field-input field-select" value={editPriority} onChange={(event) => setEditPriority(Number(event.target.value) as TodoPriority)}>
-                            {priorityOptions.map((item) => (
-                              <option key={item.value} value={item.value}>
-                                {item.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                            <BellRing className="h-4 w-4" />
-                            提醒设置
-                          </div>
-                          <select className="field-input field-select" value={editReminderType} onChange={(event) => setEditReminderType(event.target.value as TodoReminderType)}>
-                            {reminderOptions.map((item) => (
-                              <option key={item.value} value={item.value}>
-                                {item.label}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="mt-2 text-sm muted">{reminderOptions.find((item) => item.value === editReminderType)?.hint}</div>
-
-                          {editReminderType === 'custom_date' ? (
-                            <div className="mt-3">
-                              <input className="field-input" type="datetime-local" value={editReminderAt} onChange={(event) => setEditReminderAt(event.target.value)} />
-                            </div>
-                          ) : null}
-                        </div>
-                        <div>
-                          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                            <Tags className="h-4 w-4" />
-                            编辑标签
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {tags.length === 0 ? <div className="text-sm muted">当前没有可用标签。</div> : null}
-                            {tags.map((tag) => {
-                              const selected = editSelectedTagIds.includes(tag.id)
-
-                              return (
-                                <button
-                                  key={tag.id}
-                                  type="button"
-                                  onClick={() => handleToggleEditTag(tag.id)}
-                                  className={`tag-chip ${selected ? 'ring-2 ring-[var(--accent)]' : ''}`}
-                                >
-                                  <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
-                                  {tag.name}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                            <ListChecks className="h-4 w-4" />
-                            编辑子任务
-                          </div>
-                          <div className="flex gap-2">
-                            <input
-                              className="field-input"
-                              value={editDraftSubtask}
-                              onChange={(event) => setEditDraftSubtask(event.target.value)}
-                              placeholder="添加一个新的子任务"
-                            />
-                            <Button type="button" tone="secondary" onClick={handleAddEditSubtask}>
-                              添加
-                            </Button>
-                          </div>
-                          <div className="mt-3 space-y-2">
-                            {editSubtasks.length === 0 ? <div className="text-sm muted">当前没有子任务。</div> : null}
-                            {editSubtasks.map((subtask, index) => (
-                              <div key={`${index}-${subtask.title}`} className="panel flex items-center gap-3 px-4 py-3">
-                                <input
-                                  className="field-checkbox h-4 w-4"
-                                  type="checkbox"
-                                  checked={subtask.isCompleted}
-                                  onChange={(event) =>
-                                    setEditSubtasks((current) =>
-                                      current.map((item, itemIndex) =>
-                                        itemIndex === index ? { ...item, isCompleted: event.target.checked } : item,
-                                      ),
-                                    )
-                                  }
-                                />
-                                <input
-                                  className="field-input"
-                                  value={subtask.title}
-                                  onChange={(event) =>
-                                    setEditSubtasks((current) =>
-                                      current.map((item, itemIndex) =>
-                                        itemIndex === index ? { ...item, title: event.target.value } : item,
-                                      ),
-                                    )
-                                  }
-                                />
-                                <Button
-                                  type="button"
-                                  tone="ghost"
-                                  onClick={() => setEditSubtasks((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                                >
-                                  <X className="h-4 w-4" />
-                                  删除
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        {editFormError ? <div className="text-sm text-[#d11f3e]">{editFormError}</div> : null}
-                        {updateTodoMutation.error ? <div className="text-sm text-[#d11f3e]">{updateTodoMutation.error.message}</div> : null}
-                        {replaceTodoTagsMutation.error ? <div className="text-sm text-[#d11f3e]">{replaceTodoTagsMutation.error.message}</div> : null}
-                        {replaceTodoSubtasksMutation.error ? <div className="text-sm text-[#d11f3e]">{replaceTodoSubtasksMutation.error.message}</div> : null}
-                      </div>
-                    ) : (
                       <>
                         <div className="flex flex-wrap items-center gap-2">
                           <h4 className={`text-lg font-semibold ${todo.status === 'completed' ? 'line-through opacity-60' : ''}`}>{todo.title}</h4>
@@ -1066,7 +1213,6 @@ export function DashboardPage() {
                           ) : null}
                         </div>
                       </>
-                    )}
 
                     {todo.tags.length > 0 ? (
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -1079,27 +1225,9 @@ export function DashboardPage() {
                       </div>
                     ) : null}
 
-                    {todo.subtasks.length > 0 && editingTodoId !== todo.id ? (
+                    {todo.subtasks.length > 0 ? (
                       <div className="mt-4 text-sm muted">
                         已完成 {todo.subtasks.filter((subtask) => subtask.isCompleted).length} / {todo.subtasks.length} 个子任务
-                      </div>
-                    ) : null}
-
-                    {todo.subtasks.length > 0 && editingTodoId === todo.id ? (
-                      <div className="mt-4 space-y-2">
-                        {todo.subtasks.map((subtask) => (
-                          <label key={subtask.id} className="panel flex items-center gap-3 px-4 py-3 text-sm">
-                            <input
-                              className="field-checkbox h-4 w-4"
-                              type="checkbox"
-                              checked={subtask.isCompleted}
-                              onChange={(event) =>
-                                toggleSubtaskMutation.mutate({ id: subtask.id, isCompleted: event.target.checked })
-                              }
-                            />
-                            <span className={subtask.isCompleted ? 'line-through opacity-60' : ''}>{subtask.title}</span>
-                          </label>
-                        ))}
                       </div>
                     ) : null}
                         </div>
@@ -1107,38 +1235,25 @@ export function DashboardPage() {
                     }
                     actions={
                       <>
-                        {editingTodoId === todo.id ? (
-                          <>
-                            <Button tone="secondary" onClick={() => void handleUpdateTodo(todo.id)} disabled={updateTodoMutation.isPending}>
-                              <Save className="h-4 w-4" />
-                              保存
-                            </Button>
-                            <Button tone="ghost" onClick={handleCancelEdit}>
-                              <X className="h-4 w-4" />
-                              取消
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            tone="ghost"
-                            onClick={() =>
-                              handleStartEdit(
-                                todo.id,
-                                todo.title,
-                                todo.description,
-                                todo.dueDate,
-                                todo.reminderType,
-                                todo.reminderAt,
-                                todo.priority,
-                                todo.tags.map((tag) => tag.id),
-                                todo.subtasks,
-                              )
-                            }
-                          >
-                            <PencilLine className="h-4 w-4" />
-                            编辑
-                          </Button>
-                        )}
+                        <Button
+                          tone={editingTodoId === todo.id ? 'secondary' : 'ghost'}
+                          onClick={() =>
+                            handleStartEdit(
+                              todo.id,
+                              todo.title,
+                              todo.description,
+                              todo.dueDate,
+                              todo.reminderType,
+                              todo.reminderAt,
+                              todo.priority,
+                              todo.tags.map((tag) => tag.id),
+                              todo.subtasks,
+                            )
+                          }
+                        >
+                          <PencilLine className="h-4 w-4" />
+                          {editingTodoId === todo.id ? '正在编辑' : '编辑'}
+                        </Button>
                         <Button tone="ghost" onClick={() => deleteTodoMutation.mutate(todo.id)} disabled={deleteTodoMutation.isPending}>
                           <Trash2 className="h-4 w-4" />
                           删除
@@ -1156,6 +1271,44 @@ export function DashboardPage() {
           </SortableContext>
         </DndContext>
       </section>
+
+      <EditTodoDrawer
+        isOpen={editingTodo !== null}
+        todoTitle={editingTodo?.title ?? ''}
+        tags={tags}
+        editTitle={editTitle}
+        setEditTitle={setEditTitle}
+        editDescription={editDescription}
+        setEditDescription={setEditDescription}
+        editDescriptionMode={editDescriptionMode}
+        setEditDescriptionMode={setEditDescriptionMode}
+        editDueDate={editDueDate}
+        setEditDueDate={setEditDueDate}
+        editReminderType={editReminderType}
+        setEditReminderType={setEditReminderType}
+        editReminderAt={editReminderAt}
+        setEditReminderAt={setEditReminderAt}
+        editPriority={editPriority}
+        setEditPriority={setEditPriority}
+        editSelectedTagIds={editSelectedTagIds}
+        handleToggleEditTag={handleToggleEditTag}
+        editSubtasks={editSubtasks}
+        setEditSubtasks={setEditSubtasks}
+        editDraftSubtask={editDraftSubtask}
+        setEditDraftSubtask={setEditDraftSubtask}
+        handleAddEditSubtask={handleAddEditSubtask}
+        editFormError={editFormError}
+        updateError={updateTodoMutation.error?.message ?? null}
+        replaceTagsError={replaceTodoTagsMutation.error?.message ?? null}
+        replaceSubtasksError={replaceTodoSubtasksMutation.error?.message ?? null}
+        isSaving={updateTodoMutation.isPending || replaceTodoTagsMutation.isPending || replaceTodoSubtasksMutation.isPending}
+        onClose={handleCancelEdit}
+        onSave={() => {
+          if (editingTodo) {
+            void handleUpdateTodo(editingTodo.id)
+          }
+        }}
+      />
     </AppShell>
   )
 }
