@@ -9,7 +9,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { motion } from 'framer-motion'
-import { BellRing, GripVertical, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
+import { BellRing, ChevronDown, ChevronUp, GripVertical, ListChecks, PencilLine, Plus, Save, Tags, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode, type FormEvent } from 'react'
 import { AppShell } from '../../components/layout/app-shell'
 import { Button } from '../../components/ui/button'
@@ -541,6 +541,7 @@ export function DashboardPage() {
   const [subtasks, setSubtasks] = useState<string[]>([])
   const [createFormError, setCreateFormError] = useState<string | null>(null)
   const [showCreateDetails, setShowCreateDetails] = useState(false)
+  const [expandedSubtaskTodoIds, setExpandedSubtaskTodoIds] = useState<string[]>([])
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
   const [sortMode, setSortMode] = useState<'manual' | 'due' | 'priority'>('manual')
   const [activeTagFilters, setActiveTagFilters] = useState<string[]>([])
@@ -636,6 +637,12 @@ export function DashboardPage() {
     )
   }
 
+  const handleToggleSubtaskList = (todoId: string) => {
+    setExpandedSubtaskTodoIds((current) =>
+      current.includes(todoId) ? current.filter((value) => value !== todoId) : [...current, todoId],
+    )
+  }
+
   const handleToggleEditTag = (tagId: string) => {
     setEditSelectedTagIds((current) =>
       current.includes(tagId) ? current.filter((value) => value !== tagId) : [...current, tagId],
@@ -700,6 +707,7 @@ export function DashboardPage() {
       setSubtasks([])
       setDraftSubtask('')
       setCreateFormError(null)
+      setShowCreateDetails(false)
     } catch {
       return
     }
@@ -894,117 +902,134 @@ export function DashboardPage() {
               <Button type="submit" disabled={createTodoMutation.isPending}>
                 {createTodoMutation.isPending ? '保存中...' : '创建 Todo'}
               </Button>
-              <Button tone="secondary" onClick={() => setShowCreateDetails((current) => !current)}>
-                {showCreateDetails ? '收起高级选项' : '展开描述、提醒和子任务'}
-              </Button>
               {createFormError ? <div className="text-sm text-[#d11f3e]">{createFormError}</div> : null}
               {createTodoMutation.error ? <div className="text-sm text-[#d11f3e]">{createTodoMutation.error.message}</div> : null}
             </div>
 
-            {showCreateDetails ? (
-              <>
+            <section className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-strong)]/65">
+              <button
+                type="button"
+                onClick={() => setShowCreateDetails((current) => !current)}
+                className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left"
+              >
                 <div>
-                  <label className="mb-2 block text-sm font-semibold">描述</label>
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    {(['write', 'preview'] as const).map((mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => setDescriptionMode(mode)}
-                        className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em]', descriptionMode === mode ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--surface-strong)] muted')}
-                      >
-                        {mode === 'write' ? '编辑' : '预览'}
-                      </button>
-                    ))}
+                  <div className="text-sm font-semibold">高级选项</div>
+                  <div className="mt-1 text-xs muted">
+                    描述、提醒、标签和子任务
+                    {selectedTagIds.length > 0 ? ` · ${selectedTagIds.length} 个标签` : ''}
+                    {subtasks.length > 0 ? ` · ${subtasks.length} 个子任务` : ''}
+                    {reminderType !== 'none' ? ' · 已设置提醒' : ''}
                   </div>
-                  {descriptionMode === 'write' ? (
-                    <textarea className="field-input field-textarea" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="补充说明、上下文和期望结果，支持标题、列表、链接和粗体。" />
-                  ) : (
-                    <div className="field-input min-h-[112px]">
-                      <MarkdownPreview content={description} emptyState="在左侧编辑后，这里会显示 Markdown 预览。" />
-                    </div>
-                  )}
-                  <div className="mt-2 text-xs muted">支持轻量 Markdown：标题、粗体、列表、引用、行内代码、链接、表格和任务列表。</div>
                 </div>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]">
+                  {showCreateDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </span>
+              </button>
 
-                <div>
-                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                    <BellRing className="h-4 w-4" />
-                    提醒
-                  </div>
-                  <select className="field-input field-select" value={reminderType} onChange={(event) => setReminderType(event.target.value as TodoReminderType)}>
-                    {reminderOptions.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="mt-2 text-sm muted">{reminderOptions.find((item) => item.value === reminderType)?.hint}</div>
-
-                  {reminderType === 'custom_date' ? (
-                    <div className="mt-3">
-                      <label className="mb-2 block text-sm font-semibold">提醒时间</label>
-                      <input className="field-input" type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} />
-                    </div>
-                  ) : null}
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                    <Tags className="h-4 w-4" />
-                    标签
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {tags.length === 0 ? <div className="text-sm muted">当前还没有标签，可在右侧快速创建。</div> : null}
-                    {tags.map((tag) => {
-                      const selected = selectedTagIds.includes(tag.id)
-
-                      return (
+              {showCreateDetails ? (
+                <div className="grid gap-5 border-t border-[var(--border)] px-4 py-4 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <label className="mb-2 block text-sm font-semibold">描述</label>
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {(['write', 'preview'] as const).map((mode) => (
                         <button
-                          key={tag.id}
+                          key={mode}
                           type="button"
-                          onClick={() => handleToggleTag(tag.id)}
-                          className={`tag-chip ${selected ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                          onClick={() => setDescriptionMode(mode)}
+                          className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em]', descriptionMode === mode ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]' : 'border-[var(--border)] bg-[var(--surface-strong)] muted')}
                         >
-                          <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
-                          {tag.name}
+                          {mode === 'write' ? '编辑' : '预览'}
                         </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                    <ListChecks className="h-4 w-4" />
-                    子任务
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      className="field-input"
-                      value={draftSubtask}
-                      onChange={(event) => setDraftSubtask(event.target.value)}
-                      placeholder="添加一个 checklist 项"
-                    />
-                    <Button type="button" tone="secondary" onClick={handleAddSubtask}>
-                      添加
-                    </Button>
-                  </div>
-                  {subtasks.length > 0 ? (
-                    <div className="mt-3 space-y-2">
-                      {subtasks.map((item, index) => (
-                        <div key={`${item}-${index}`} className="panel-strong flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                          <span>{item}</span>
-                          <button type="button" className="muted" onClick={() => setSubtasks((current) => current.filter((_, currentIndex) => currentIndex !== index))}>
-                            移除
-                          </button>
-                        </div>
                       ))}
                     </div>
-                  ) : null}
+                    {descriptionMode === 'write' ? (
+                      <textarea className="field-input field-textarea" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="补充说明、上下文和期望结果，支持标题、列表、链接和粗体。" />
+                    ) : (
+                      <div className="field-input min-h-[112px]">
+                        <MarkdownPreview content={description} emptyState="在左侧编辑后，这里会显示 Markdown 预览。" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                      <BellRing className="h-4 w-4" />
+                      提醒
+                    </div>
+                    <select className="field-input field-select" value={reminderType} onChange={(event) => setReminderType(event.target.value as TodoReminderType)}>
+                      {reminderOptions.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mt-2 text-sm muted">{reminderOptions.find((item) => item.value === reminderType)?.hint}</div>
+
+                    {reminderType === 'custom_date' ? (
+                      <div className="mt-3">
+                        <label className="mb-2 block text-sm font-semibold">提醒时间</label>
+                        <input className="field-input" type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)} />
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                      <Tags className="h-4 w-4" />
+                      标签
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {tags.length === 0 ? <div className="text-sm muted">当前还没有标签，可在设置页中创建。</div> : null}
+                      {tags.map((tag) => {
+                        const selected = selectedTagIds.includes(tag.id)
+
+                        return (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            onClick={() => handleToggleTag(tag.id)}
+                            className={`tag-chip ${selected ? 'ring-2 ring-[var(--accent)]' : ''}`}
+                          >
+                            <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
+                            {tag.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                      <ListChecks className="h-4 w-4" />
+                      子任务
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        className="field-input"
+                        value={draftSubtask}
+                        onChange={(event) => setDraftSubtask(event.target.value)}
+                        placeholder="添加一个 checklist 项"
+                      />
+                      <Button type="button" tone="secondary" onClick={handleAddSubtask}>
+                        添加
+                      </Button>
+                    </div>
+                    {subtasks.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {subtasks.map((item, index) => (
+                          <div key={`${item}-${index}`} className="panel-strong flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                            <span>{item}</span>
+                            <button type="button" className="muted" onClick={() => setSubtasks((current) => current.filter((_, currentIndex) => currentIndex !== index))}>
+                              移除
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              </>
-            ) : null}
+              ) : null}
+            </section>
           </div>
         </form>
       </section>
@@ -1084,44 +1109,60 @@ export function DashboardPage() {
                         />
 
                         <div className="min-w-0">
-                      <>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className={`text-lg font-semibold ${todo.status === 'completed' ? 'line-through opacity-60' : ''}`}>{todo.title}</h4>
-                          <span className="tag-chip" style={{ borderColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }}>
-                            <span className="tag-chip-dot" style={{ backgroundColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }} />
-                            {priorityOptions.find((item) => item.value === todo.priority)?.label}
-                          </span>
-                        </div>
-
-                        {getDescriptionSnippet(todo.description) ? <p className="mt-3 text-sm muted">{getDescriptionSnippet(todo.description)}</p> : null}
-
-                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] muted">
-                          <span>Due {formatDate(todo.dueDate)}</span>
-                          {hasReminder(todo.reminderType) ? (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-2 py-1">
-                              <BellRing className="h-3 w-3" />
-                              Reminder
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className={`text-lg font-semibold ${todo.status === 'completed' ? 'line-through opacity-60' : ''}`}>{todo.title}</h4>
+                            <span className="tag-chip" style={{ borderColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }}>
+                              <span className="tag-chip-dot" style={{ backgroundColor: priorityOptions.find((item) => item.value === todo.priority)?.tone }} />
+                              {priorityOptions.find((item) => item.value === todo.priority)?.label}
                             </span>
+                          </div>
+
+                          {getDescriptionSnippet(todo.description) ? <p className="mt-3 text-sm muted">{getDescriptionSnippet(todo.description)}</p> : null}
+
+                          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] muted">
+                            <span>Due {formatDate(todo.dueDate)}</span>
+                            {hasReminder(todo.reminderType) ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-2 py-1">
+                                <BellRing className="h-3 w-3" />
+                                Reminder
+                              </span>
+                            ) : null}
+                          </div>
+
+                          {todo.tags.length > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {todo.tags.map((tag) => (
+                                <span key={tag.id} className="tag-chip">
+                                  <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
+                                  {tag.name}
+                                </span>
+                              ))}
+                            </div>
                           ) : null}
-                        </div>
-                      </>
 
-                    {todo.tags.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {todo.tags.map((tag) => (
-                          <span key={tag.id} className="tag-chip">
-                            <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />
-                            {tag.name}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
+                          {todo.subtasks.length > 0 ? (
+                            <div className="mt-4">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSubtaskList(todo.id)}
+                                className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]"
+                              >
+                                {expandedSubtaskTodoIds.includes(todo.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                子任务 {todo.subtasks.filter((subtask) => subtask.isCompleted).length}/{todo.subtasks.length}
+                              </button>
 
-                    {todo.subtasks.length > 0 ? (
-                      <div className="mt-4 text-sm muted">
-                        已完成 {todo.subtasks.filter((subtask) => subtask.isCompleted).length} / {todo.subtasks.length} 个子任务
-                      </div>
-                    ) : null}
+                              {expandedSubtaskTodoIds.includes(todo.id) ? (
+                                <div className="mt-3 space-y-2">
+                                  {todo.subtasks.map((subtask) => (
+                                    <div key={subtask.id} className="panel flex items-center gap-3 px-4 py-3 text-sm">
+                                      <span className={`h-2.5 w-2.5 rounded-full ${subtask.isCompleted ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`} />
+                                      <span className={subtask.isCompleted ? 'line-through opacity-60' : ''}>{subtask.title}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                       </>
                     }
