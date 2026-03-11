@@ -2,7 +2,7 @@ export const appRelease = {
   version: __APP_VERSION__,
   channel: 'beta',
   codename: 'Northstar',
-  summary: 'Todo 和标签操作已加入乐观更新、全局同步提示与局部过渡反馈，降低 Supabase 往返延迟带来的卡顿感。',
+  summary: '查询刷新现已支持 skeleton 与后台重验证提示，同时补充了同步成功和失败回滚的全局 toast 反馈。',
 } as const
 
 export function formatVersionLabel(version: string, channel: string) {

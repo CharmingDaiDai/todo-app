@@ -113,6 +113,14 @@ export function TagManagerSection({ userId }: TagManagerSectionProps) {
       ) : null}
 
       <div className="mt-6 flex flex-wrap gap-2">
+        {tagsQuery.isLoading ? (
+          <>
+            <span className="tag-chip surface-syncing h-8 w-24" />
+            <span className="tag-chip surface-syncing h-8 w-20" />
+            <span className="tag-chip surface-syncing h-8 w-28" />
+          </>
+        ) : null}
+        {!tagsQuery.isLoading && tagsQuery.isFetching ? <div className="sync-pill"><span className="sync-pill-dot" /> 正在刷新标签</div> : null}
         {tags.map((tag) => (
           <span key={tag.id} className={cn('tag-chip', deletingTagIds.has(tag.id) && 'tag-chip-syncing')}>
             <span className="tag-chip-dot" style={{ backgroundColor: tag.color }} />

@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { keepPreviousData, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useState, type PropsWithChildren } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/auth-store'
@@ -47,6 +47,7 @@ export function AppProviders({ children }: PropsWithChildren) {
           queries: {
             staleTime: 30_000,
             refetchOnWindowFocus: false,
+            placeholderData: keepPreviousData,
           },
         },
       }),

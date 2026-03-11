@@ -1,4 +1,4 @@
-import { useIsMutating } from '@tanstack/react-query'
+import { useIsFetching, useIsMutating } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { House, LoaderCircle, Settings, Wifi, WifiOff } from 'lucide-react'
 import { useEffect, useState, type PropsWithChildren, type ReactNode } from 'react'
@@ -21,9 +21,11 @@ const navItems = [
 export function AppShell({ eyebrow, title, description, mobileToolbar, hidePageHeader = false, children }: AppShellProps) {
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine)
   const activeMutationCount = useIsMutating()
+  const activeQueryCount = useIsFetching()
   const isSyncing = activeMutationCount > 0
+  const isRefreshing = activeQueryCount > 0
   const networkLabel = isOnline ? '在线' : '离线'
-  const statusLabel = isSyncing ? `同步中 ${activeMutationCount}` : networkLabel
+  const statusLabel = isSyncing ? `同步中 ${activeMutationCount}` : isRefreshing ? `刷新中 ${activeQueryCount}` : networkLabel
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true)
@@ -65,7 +67,7 @@ export function AppShell({ eyebrow, title, description, mobileToolbar, hidePageH
 
           <div className="inline-flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)]">
             <div className={cn('flex h-8 w-8 items-center justify-center rounded-full', isSyncing ? 'bg-[var(--accent)]/14 text-[var(--accent)]' : 'bg-[var(--accent-soft)] text-[var(--accent)]')}>
-              {isSyncing ? <LoaderCircle className="h-5 w-5 animate-spin" /> : isOnline ? <Wifi className="h-5 w-5" /> : <WifiOff className="h-5 w-5" />}
+              {isSyncing || isRefreshing ? <LoaderCircle className="h-5 w-5 animate-spin" /> : isOnline ? <Wifi className="h-5 w-5" /> : <WifiOff className="h-5 w-5" />}
             </div>
             <span>{statusLabel}</span>
           </div>
@@ -87,10 +89,10 @@ export function AppShell({ eyebrow, title, description, mobileToolbar, hidePageH
                     aria-label={statusLabel}
                     title={statusLabel}
                   >
-                    {isSyncing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+                    {isSyncing || isRefreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
                   </div>
                 </div>
-                {isSyncing ? <div className="mt-3 sync-pill"><span className="sync-pill-dot" /> 正在与 Supabase 同步更改</div> : null}
+                {isSyncing || isRefreshing ? <div className="mt-3 sync-pill"><span className="sync-pill-dot" /> {isSyncing ? '正在与 Supabase 同步更改' : '正在后台刷新最新数据'}</div> : null}
               </section>
             ) : null
           ) : (
@@ -106,10 +108,10 @@ export function AppShell({ eyebrow, title, description, mobileToolbar, hidePageH
                     aria-label={statusLabel}
                     title={statusLabel}
                   >
-                    {isSyncing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+                    {isSyncing || isRefreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
                   </div>
                 </div>
-                {isSyncing ? <div className="mt-4 sync-pill"><span className="sync-pill-dot" /> 正在与 Supabase 同步更改</div> : null}
+                {isSyncing || isRefreshing ? <div className="mt-4 sync-pill"><span className="sync-pill-dot" /> {isSyncing ? '正在与 Supabase 同步更改' : '正在后台刷新最新数据'}</div> : null}
 
                 {mobileToolbar ? <div className="mt-4">{mobileToolbar}</div> : null}
               </section>
@@ -127,10 +129,10 @@ export function AppShell({ eyebrow, title, description, mobileToolbar, hidePageH
                     aria-label={statusLabel}
                     title={statusLabel}
                   >
-                    {isSyncing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4 text-[#d11f3e]" />}
+                    {isSyncing || isRefreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4 text-[#d11f3e]" />}
                   </div>
                 </div>
-                {isSyncing ? <div className="mt-4 sync-pill"><span className="sync-pill-dot" /> 正在与 Supabase 同步更改</div> : null}
+                {isSyncing || isRefreshing ? <div className="mt-4 sync-pill"><span className="sync-pill-dot" /> {isSyncing ? '正在与 Supabase 同步更改' : '正在后台刷新最新数据'}</div> : null}
               </section>
             </>
           )}

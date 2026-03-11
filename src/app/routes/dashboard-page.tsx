@@ -16,6 +16,7 @@ import { AppShell } from '../../components/layout/app-shell'
 import { Button } from '../../components/ui/button'
 import { DateTimeField } from '../../components/ui/date-time-picker'
 import { MarkdownPreview } from '../../components/ui/markdown-preview'
+import { pushSuccessToast } from '../../store/toast-store'
 import {
   todoMutationKeys,
   useCreateTodoMutation,
@@ -204,6 +205,34 @@ function TagPicker({ tags, selectedTagIds, onToggle }: { tags: Tag[]; selectedTa
           </button>
         )
       })}
+    </div>
+  )
+}
+
+function DashboardMetricSkeleton() {
+  return (
+    <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 surface-syncing">
+      <div className="h-3 w-16 rounded-full bg-[var(--accent-soft)]/70" />
+      <div className="mt-3 h-8 w-12 rounded-full bg-[var(--accent-soft)]/70" />
+    </div>
+  )
+}
+
+function TodoCardSkeleton() {
+  return (
+    <div className="panel-strong p-5 surface-syncing">
+      <div className="flex gap-4">
+        <div className="mt-1 h-5 w-5 rounded-md bg-[var(--accent-soft)]/70" />
+        <div className="min-w-0 flex-1">
+          <div className="h-5 w-40 rounded-full bg-[var(--accent-soft)]/70" />
+          <div className="mt-3 h-3.5 w-full max-w-[26rem] rounded-full bg-[var(--accent-soft)]/60" />
+          <div className="mt-2 h-3.5 w-2/3 rounded-full bg-[var(--accent-soft)]/60" />
+          <div className="mt-4 flex gap-2">
+            <div className="h-7 w-24 rounded-full bg-[var(--accent-soft)]/70" />
+            <div className="h-7 w-20 rounded-full bg-[var(--accent-soft)]/50" />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1218,6 +1247,7 @@ export function DashboardPage() {
         })),
       })
 
+      pushSuccessToast('更改已同步', '任务内容、标签和子任务已经保存到云端。')
       handleCancelEdit()
     } catch {
       return
@@ -1273,27 +1303,37 @@ export function DashboardPage() {
     >
       <section className="panel px-4 py-3 sm:px-5">
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3">
-            <div className="text-[0.68rem] uppercase tracking-[0.18em] muted">Open</div>
-            <div className="mt-2 flex items-end justify-between gap-3">
-              <div className="text-2xl font-semibold">{pendingCount}</div>
-              <div className="text-xs muted">进行中</div>
-            </div>
-          </div>
-          <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3">
-            <div className="text-[0.68rem] uppercase tracking-[0.18em] muted">Due soon</div>
-            <div className="mt-2 flex items-end justify-between gap-3">
-              <div className="text-2xl font-semibold">{dueSoonCount}</div>
-              <div className="text-xs muted">24 小时内</div>
-            </div>
-          </div>
-          <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3">
-            <div className="text-[0.68rem] uppercase tracking-[0.18em] muted">Done</div>
-            <div className="mt-2 flex items-end justify-between gap-3">
-              <div className="text-2xl font-semibold">{completedCount}</div>
-              <div className="text-xs muted">已完成</div>
-            </div>
-          </div>
+          {todosQuery.isLoading ? (
+            <>
+              <DashboardMetricSkeleton />
+              <DashboardMetricSkeleton />
+              <DashboardMetricSkeleton />
+            </>
+          ) : (
+            <>
+              <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3">
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] muted">Open</div>
+                <div className="mt-2 flex items-end justify-between gap-3">
+                  <div className="text-2xl font-semibold">{pendingCount}</div>
+                  <div className="text-xs muted">进行中</div>
+                </div>
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3">
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] muted">Due soon</div>
+                <div className="mt-2 flex items-end justify-between gap-3">
+                  <div className="text-2xl font-semibold">{dueSoonCount}</div>
+                  <div className="text-xs muted">24 小时内</div>
+                </div>
+              </div>
+              <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3">
+                <div className="text-[0.68rem] uppercase tracking-[0.18em] muted">Done</div>
+                <div className="mt-2 flex items-end justify-between gap-3">
+                  <div className="text-2xl font-semibold">{completedCount}</div>
+                  <div className="text-xs muted">已完成</div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
@@ -1302,6 +1342,7 @@ export function DashboardPage() {
           <div>
             <div className="text-xs uppercase tracking-[0.18em] muted">Task board</div>
             <h3 className="mt-2 text-xl font-semibold">任务列表</h3>
+            {!todosQuery.isLoading && todosQuery.isFetching ? <div className="mt-3 sync-pill"><span className="sync-pill-dot" /> 正在后台刷新任务列表</div> : null}
           </div>
 
           <DashboardFilters
@@ -1313,7 +1354,13 @@ export function DashboardPage() {
           />
         </div>
 
-        {tags.length > 0 ? (
+        {tagsQuery.isLoading ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <div className="h-8 w-24 rounded-full bg-[var(--accent-soft)]/70 surface-syncing" />
+            <div className="h-8 w-20 rounded-full bg-[var(--accent-soft)]/60 surface-syncing" />
+            <div className="h-8 w-28 rounded-full bg-[var(--accent-soft)]/50 surface-syncing" />
+          </div>
+        ) : tags.length > 0 ? (
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
@@ -1340,7 +1387,13 @@ export function DashboardPage() {
           </div>
         ) : null}
 
-        {todosQuery.isLoading ? <div className="mt-6 text-sm muted">正在加载任务数据…</div> : null}
+        {todosQuery.isLoading ? (
+          <div className="mt-6 space-y-4">
+            <TodoCardSkeleton />
+            <TodoCardSkeleton />
+            <TodoCardSkeleton />
+          </div>
+        ) : null}
         {todosQuery.error ? (
           <div className="mt-6 panel-strong p-4 text-sm text-[#d11f3e]">
             {todosQuery.error.message}

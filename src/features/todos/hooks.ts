@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createTag, createTodo, deleteTag, deleteTodo, listTags, listTodos, reorderTodo, replaceTodoSubtasks, replaceTodoTags, toggleSubtaskCompletion, toggleTodoStatus, updateTodo } from './api'
 import type { CreateTagInput, CreateTodoInput, ReorderTodoInput, ReplaceTodoSubtasksInput, ReplaceTodoTagsInput, Tag, Todo, UpdateTodoInput } from './types'
+import { pushErrorToast, pushInfoToast, pushSuccessToast } from '../../store/toast-store'
 
 export const todoKeys = {
   all: ['todos'] as const,
@@ -105,10 +106,14 @@ export function useCreateTodoMutation(userId: string | undefined) {
     onError: (_error, _input, context) => {
       if (!userId || !context?.previousTodos) return
       queryClient.setQueryData(todoKeys.list(userId), context.previousTodos)
+      pushErrorToast('创建失败，已撤回', '新任务未能写入 Supabase，本地预览已回滚。')
     },
     onSettled: async () => {
       if (!userId) return
       await queryClient.invalidateQueries({ queryKey: todoKeys.list(userId) })
+    },
+    onSuccess: () => {
+      pushSuccessToast('任务已同步', '新任务已经保存到云端。')
     },
   })
 }
@@ -140,10 +145,14 @@ export function useCreateTagMutation(userId: string | undefined) {
     onError: (_error, _input, context) => {
       if (!userId || !context?.previousTags) return
       queryClient.setQueryData(todoKeys.tags(userId), context.previousTags)
+      pushErrorToast('标签创建失败，已撤回', '新标签未能写入 Supabase，本地预览已回滚。')
     },
     onSettled: async () => {
       if (!userId) return
       await queryClient.invalidateQueries({ queryKey: todoKeys.tags(userId) })
+    },
+    onSuccess: () => {
+      pushSuccessToast('标签已同步', '新标签已经保存到云端。')
     },
   })
 }
@@ -180,11 +189,15 @@ export function useDeleteTagMutation(userId: string | undefined) {
       if (context?.previousTodos) {
         queryClient.setQueryData(todoKeys.list(userId), context.previousTodos)
       }
+      pushErrorToast('删除失败，已撤回', '标签删除未同步成功，关联状态已经恢复。')
     },
     onSettled: async () => {
       if (!userId) return
       await queryClient.invalidateQueries({ queryKey: todoKeys.tags(userId) })
       await queryClient.invalidateQueries({ queryKey: todoKeys.list(userId) })
+    },
+    onSuccess: () => {
+      pushInfoToast('标签已删除', '云端和本地状态已保持一致。')
     },
   })
 }
@@ -212,6 +225,7 @@ export function useToggleTodoStatusMutation(userId: string | undefined) {
     onError: (_error, _variables, context) => {
       if (!userId || !context?.previousTodos) return
       queryClient.setQueryData(todoKeys.list(userId), context.previousTodos)
+      pushErrorToast('状态同步失败，已撤回', '任务完成状态未成功写入，已恢复到上一次状态。')
     },
     onSettled: async () => {
       if (!userId) return
@@ -241,10 +255,14 @@ export function useDeleteTodoMutation(userId: string | undefined) {
     onError: (_error, _id, context) => {
       if (!userId || !context?.previousTodos) return
       queryClient.setQueryData(todoKeys.list(userId), context.previousTodos)
+      pushErrorToast('删除失败，已撤回', '任务删除未同步成功，本地列表已经恢复。')
     },
     onSettled: async () => {
       if (!userId) return
       await queryClient.invalidateQueries({ queryKey: todoKeys.list(userId) })
+    },
+    onSuccess: () => {
+      pushInfoToast('任务已删除', '云端和本地状态已保持一致。')
     },
   })
 }
@@ -286,6 +304,7 @@ export function useUpdateTodoMutation(userId: string | undefined) {
     onError: (_error, _input, context) => {
       if (!userId || !context?.previousTodos) return
       queryClient.setQueryData(todoKeys.list(userId), context.previousTodos)
+      pushErrorToast('保存失败，已撤回', '任务编辑未成功同步，已恢复到之前的内容。')
     },
     onSettled: async () => {
       if (!userId) return
@@ -322,6 +341,7 @@ export function useToggleSubtaskMutation(userId: string | undefined) {
     onError: (_error, _variables, context) => {
       if (!userId || !context?.previousTodos) return
       queryClient.setQueryData(todoKeys.list(userId), context.previousTodos)
+      pushErrorToast('子任务同步失败，已撤回', '子任务完成状态未成功写入，已恢复原状。')
     },
     onSettled: async () => {
       if (!userId) return
@@ -358,6 +378,7 @@ export function useReorderTodoMutation(userId: string | undefined) {
     onError: (_error, _variables, context) => {
       if (!userId || !context?.previousTodos) return
       queryClient.setQueryData(todoKeys.list(userId), context.previousTodos)
+      pushErrorToast('排序同步失败，已撤回', '任务顺序未成功写入，已恢复原顺序。')
     },
     onSettled: async () => {
       if (!userId) return
@@ -394,6 +415,7 @@ export function useReplaceTodoTagsMutation(userId: string | undefined) {
     onError: (_error, _input, context) => {
       if (!userId || !context?.previousTodos) return
       queryClient.setQueryData(todoKeys.list(userId), context.previousTodos)
+      pushErrorToast('标签同步失败，已撤回', '任务标签未成功保存，已恢复之前的标签状态。')
     },
     onSettled: async () => {
       if (!userId) return
@@ -440,6 +462,7 @@ export function useReplaceTodoSubtasksMutation(userId: string | undefined) {
     onError: (_error, _input, context) => {
       if (!userId || !context?.previousTodos) return
       queryClient.setQueryData(todoKeys.list(userId), context.previousTodos)
+      pushErrorToast('子任务保存失败，已撤回', '子任务列表未成功保存，已恢复之前的内容。')
     },
     onSettled: async () => {
       if (!userId) return
